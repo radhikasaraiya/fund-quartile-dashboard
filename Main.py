@@ -254,14 +254,16 @@ if uploaded_file:
         # -------------------------------------------------------
 
         #raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None)
-        raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None, engine="openpyxl")
+        #raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None, engine="openpyxl")
+        raw = pd.read_excel(   uploaded_file,    sheet_name=selected_sub,    header=None,    engine=excel_file.engine)
         header_row = raw[
             raw.astype(str)
             .apply(lambda x: x.str.contains("^Scheme Name$", case=False, na=False))
             .any(axis=1)
         ].index[0]
 
-        df = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=header_row)
+        #df = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=header_row)
+        df = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=header_row,engine=excel_file.engine)
         df.columns = df.columns.astype(str).str.strip()
 
         df = df[df["Scheme Name"].notna()]
