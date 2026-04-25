@@ -223,8 +223,16 @@ with col1:
 if uploaded_file:
 
    # excel_file = pd.ExcelFile(uploaded_file)
-    excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
+    #excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
+    file_name = uploaded_file.name
 
+    if file_name.endswith(".xlsx"):
+        excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
+    elif file_name.endswith(".xls"):
+        excel_file = pd.ExcelFile(uploaded_file, engine="xlrd")
+    else:
+        st.error("Unsupported file format")
+        st.stop()
     with col2:
         fund_categories = ["All"] + list(category_map.keys())
         selected_category = st.selectbox("Fund Category", fund_categories)
