@@ -222,7 +222,8 @@ with col1:
 
 if uploaded_file:
 
-    excel_file = pd.ExcelFile(uploaded_file)
+   # excel_file = pd.ExcelFile(uploaded_file)
+    excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
 
     with col2:
         fund_categories = ["All"] + list(category_map.keys())
@@ -244,8 +245,8 @@ if uploaded_file:
         # LOAD DATA
         # -------------------------------------------------------
 
-        raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None)
-
+        #raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None)
+        raw = pd.read_excel(uploaded_file, sheet_name=selected_sub, header=None, engine="openpyxl")
         header_row = raw[
             raw.astype(str)
             .apply(lambda x: x.str.contains("^Scheme Name$", case=False, na=False))
