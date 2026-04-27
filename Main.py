@@ -421,7 +421,7 @@ if uploaded_file:
         with card1_placeholder:
             st.markdown("""
             <div style="background:#d4edda;padding:15px;border-radius:12px; height:100%;">
-                <h6 style="color:#155724; margin-top:15px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Good Performing">✅ Good</h6>
+                <h6 style="color:#155724; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Good Performing">✅ Good</h6>
                 <h3 style="color:#155724; margin:0px;">{}</h3>
             </div>
             """.format(len(good_df)), unsafe_allow_html=True)
@@ -429,7 +429,7 @@ if uploaded_file:
         with card2_placeholder:
             st.markdown("""
             <div style="background:#fff3cd;padding:15px;border-radius:12px; height:100%;">
-                <h6 style="color:#856404; margin-top:15px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Neutral">⚖ Neutral</h6>
+                <h6 style="color:#856404; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Neutral">⚖ Neutral</h6>
                 <h3 style="color:#856404; margin:0px;">{}</h3>
             </div>
             """.format(len(neutral_df)), unsafe_allow_html=True)
@@ -437,7 +437,7 @@ if uploaded_file:
         with card3_placeholder:
             st.markdown("""
             <div style="background:#f8d7da;padding:15px;border-radius:12px; height:100%;">
-                <h6 style="color:#721c24; margin-top:15px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Low Performing">❌ Low</h6>
+                <h6 style="color:#721c24; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Low Performing">❌ Low</h6>
                 <h3 style="color:#721c24; margin:0px;">{}</h3>
             </div>
             """.format(len(low_df)), unsafe_allow_html=True)
