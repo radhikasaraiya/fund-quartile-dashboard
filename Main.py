@@ -390,15 +390,22 @@ if uploaded_file:
         required_periods = ["1 Month","3 Months","6 Months","YTD","1 Year","2 Years"]
 
         quartile_map = {}
+        percent_map = {}
         for period in required_periods:
             matches = [c for c in df.columns if c.startswith(period)]
             if len(matches) >= 2:
+                percent_map[period] = matches[0]
                 quartile_map[period] = matches[1]
 
-        selected_cols = ["Scheme Name"] + list(quartile_map.values())
+        selected_cols = ["Scheme Name"] + list(quartile_map.values()) + list(percent_map.values())
         final_df = df[selected_cols].copy()
 
-        rename_dict = {v: k for k, v in quartile_map.items()}
+        rename_dict = {}
+        for period, col_name in quartile_map.items():
+            rename_dict[col_name] = period
+        for period, col_name in percent_map.items():
+            rename_dict[col_name] = f"{period}_pct"
+            
         final_df.rename(columns=rename_dict, inplace=True)
 
         for col in required_periods:
@@ -529,13 +536,55 @@ if uploaded_file:
 
             # ---------------------------
             # Apply Search
-            # ---------------------------
             if search:
                 df_data = df_data[
                     df_data["Scheme Name"].str.contains(search, case=False, na=False)
                 ]
 
-            st.dataframe(df_data, use_container_width=True, hide_index=True, height=700)
+            display_df = pd.DataFrame()
+            display_df["Scheme Name"] = df_data["Scheme Name"]
+            
+            for period in required_periods:
+                if period in df_data.columns:
+                    pct_col = f"{period}_pct"
+                    if pct_col in df_data.columns:
+                        def format_cell(row, p=period, pc=pct_col):
+                            q = row[p]
+                            pct = row[pc]
+                            if pd.isna(q): return ""
+                            q_str = str(int(q)) if pd.notna(q) and q == q // 1 else str(q)
+                            if pd.isna(pct): return q_str
+                            
+                            if isinstance(pct, (int, float)):
+                                pct_str = f"{pct:.2f}"
+                            else:
+                                pct_str = str(pct)
+                            return f"{q_str} ({pct_str})"
+                        
+                        display_df[period] = df_data.apply(format_cell, axis=1)
+                    else:
+                        display_df[period] = df_data[period]
+
+            def color_cells(val):
+                if isinstance(val, str) and '(' in val and ')' in val:
+                    try:
+                        p_str = val.split('(')[1].split(')')[0]
+                        p_str = p_str.replace('%', '').strip()
+                        p_val = float(p_str)
+                        if p_val > 0:
+                            return 'color: green;'
+                        elif p_val < 0:
+                            return 'color: red;'
+                    except:
+                        pass
+                return ''
+
+            if hasattr(display_df.style, 'map'):
+                styled_df = display_df.style.map(color_cells, subset=[c for c in required_periods if c in display_df.columns])
+            else:
+                styled_df = display_df.style.applymap(color_cells, subset=[c for c in required_periods if c in display_df.columns])
+
+            st.dataframe(styled_df, use_container_width=True, hide_index=True, height=700)
 
         # -------------------------------------------------------
         # RENDER TABS
