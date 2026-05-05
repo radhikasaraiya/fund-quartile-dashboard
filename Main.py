@@ -370,7 +370,7 @@ with main_tab1:
         ]
     }
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, card1, card2, card3 = st.columns([1.2, 1.2, 1.2, 0.5, 0.5, 0.5])
     
     @st.cache_data(show_spinner=False)
     def get_fund_data():
@@ -463,8 +463,6 @@ with main_tab1:
     
             selected_sub = st.selectbox("Sub Category", ["Select"] + sub_options)
     
-        # Summary cards row right after subcategory dropdown
-        card1, card2, card3 = st.columns(3)
         card1_placeholder = card1.empty()
         card2_placeholder = card2.empty()
         card3_placeholder = card3.empty()
@@ -592,25 +590,25 @@ with main_tab1:
     
             with card1_placeholder:
                 st.markdown("""
-                <div style="background:#d4edda;padding:15px;border-radius:12px; height:100%;">
-                    <h6 style="color:#155724; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Good Performing">✅ Good</h6>
-                    <h3 style="color:#155724; margin:0px;">{}</h3>
+                <div style="background:#d4edda;padding:8px 12px;border-radius:10px;text-align:center;">
+                    <div style="color:#155724; font-size:12px;">✅ Good</div>
+                    <div style="color:#155724; font-size:22px; font-weight:bold;">{}</div>
                 </div>
                 """.format(len(good_df)), unsafe_allow_html=True)
     
             with card2_placeholder:
                 st.markdown("""
-                <div style="background:#fff3cd;padding:15px;border-radius:12px; height:100%;">
-                    <h6 style="color:#856404; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Neutral">⚖ Neutral</h6>
-                    <h3 style="color:#856404; margin:0px;">{}</h3>
+                <div style="background:#fff3cd;padding:8px 12px;border-radius:10px;text-align:center;">
+                    <div style="color:#856404; font-size:12px;">⚖ Neutral</div>
+                    <div style="color:#856404; font-size:22px; font-weight:bold;">{}</div>
                 </div>
                 """.format(len(neutral_df)), unsafe_allow_html=True)
     
             with card3_placeholder:
                 st.markdown("""
-                <div style="background:#f8d7da;padding:15px;border-radius:12px; height:100%;">
-                    <h6 style="color:#721c24; margin-top:25px; margin-bottom:0px; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Low Performing">❌ Low</h6>
-                    <h3 style="color:#721c24; margin:0px;">{}</h3>
+                <div style="background:#f8d7da;padding:8px 12px;border-radius:10px;text-align:center;">
+                    <div style="color:#721c24; font-size:12px;">❌ Low</div>
+                    <div style="color:#721c24; font-size:22px; font-weight:bold;">{}</div>
                 </div>
                 """.format(len(low_df)), unsafe_allow_html=True)
     
