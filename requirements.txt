@@ -4,3 +4,4 @@ openpyxl
 xlrd
 reportlab
 playwright
+plotly>=5.0.0
