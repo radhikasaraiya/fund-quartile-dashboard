@@ -93,13 +93,16 @@ def load_all_scheme_quartiles(data_file):
     except Exception as e:
         return pd.DataFrame()
 
+
+st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
+  
 main_tab1, main_tab2 = st.tabs(['Dashboard', 'Client Wise'])
 
 with main_tab1:
     header_col, card1, card2, card3 = st.columns([1.5, 1, 1, 1])
     
-    with header_col:
-        st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
+    # with header_col:
+    #     st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
     
     card1_placeholder = card1.empty()
     card2_placeholder = card2.empty()
@@ -366,6 +369,13 @@ with main_tab1:
         filename = os.path.join("Data", "Fund-Barometer.xls")
         os.makedirs("Data", exist_ok=True)
         
+        # Check if file already downloaded today
+        import datetime
+        if os.path.exists(filename):
+            file_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(filename)).date()
+            if file_mtime == datetime.date.today():
+                return filename
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -377,15 +387,45 @@ with main_tab1:
                     file.write(chunk)
         return filename
     
+    # Auto-download AUM data if not downloaded today
+    import datetime
+    aum_file_path = "Data/AUM_IndividualWise.xlsx"
+    aum_needs_download = True
+    if os.path.exists(aum_file_path):
+        aum_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(aum_file_path)).date()
+        if aum_mtime == datetime.date.today():
+            aum_needs_download = False
+    
+    if aum_needs_download:
+        import autodownload
+        with st.spinner("Downloading AUM Data (first load of the day)..."):
+            try:
+                autodownload.run()
+                load_investors.clear()
+            except Exception as e:
+                st.error(f"AUM Auto-Download Failed: {e}")
+    
     with col1:
         st.markdown("<div style='padding-top: 10px;'>", unsafe_allow_html=True)
-        if st.button("Fetch Latest Data"):
-            get_fund_data.clear()
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Fetch Fund Data"):
+                get_fund_data.clear()
+        with c2:
+            if st.button("Fetch AUM Data"):
+                import autodownload
+                with st.spinner("Downloading AUM Data..."):
+                    try:
+                        autodownload.run()
+                        load_investors.clear()
+                        st.success("AUM Data Updated!")
+                    except Exception as e:
+                        st.error(f"AUM Download Failed: {e}")
         st.markdown("</div>", unsafe_allow_html=True)
     
     data_file = None
     try:
-        with st.spinner("Downloading/Loading Fund Barometer..."):
+        with st.spinner("Loading Fund Barometer..."):
             data_file = get_fund_data()
     except Exception as e:
         st.error(f"Failed to fetch data: {e}")
@@ -753,7 +793,7 @@ with main_tab1:
                     if not investor_df.empty and "Scheme Name" in investor_df.columns:
                         matched_clients = investor_df[investor_df["Scheme Name"].astype(str).str.strip().str.lower() == str(selected_fund).strip().lower()]
                         if not matched_clients.empty:
-                            cols_to_show = ["Client Name", "Folio", "AUM", "ARN No"]
+                            cols_to_show = ["Client Name", "Folio",  "ARN No","AUM"]
                             cols_to_show = [c for c in cols_to_show if c in matched_clients.columns]
                             
                             display_df = matched_clients[cols_to_show].copy() if cols_to_show else matched_clients.copy()
@@ -785,7 +825,8 @@ with main_tab1:
                                 height=600,
                                 column_config={
                                     "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
-                                    "Client Name": st.column_config.TextColumn("Client Name", width="medium")
+                                    "Client Name": st.column_config.TextColumn("Client Name", width="medium"),
+                                    "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
                                 }
                             )
                         else:
@@ -795,7 +836,7 @@ with main_tab1:
                 else:
                     st.markdown("<div style='margin-top: 50px; text-align: center; color: gray;'>Select a fund from the tables to view clients.</div>", unsafe_allow_html=True)
 with main_tab2:
-    st.markdown("### Client Wise Details")
+    #st.markdown("### Client Wise Details")
     investor_df = load_investors()
     if not investor_df.empty and "Client Name" in investor_df.columns:
         client_names = sorted(investor_df["Client Name"].dropna().unique().tolist())
@@ -814,8 +855,8 @@ with main_tab2:
                 client_data = pd.merge(client_data, master_q_df.drop(columns=["Scheme Name"]), on="_match_name", how="left")
                 client_data.drop(columns=["_match_name"], inplace=True)
             
-            cols_to_show = ["Scheme Name", "Folio", "AUM", "ARN No"]
-            required_periods = ["1 Month", "3 Months", "6 Months", "YTD", "1 Year", "2 Years"]
+            cols_to_show = ["Scheme Name", "Folio",  "ARN No","AUM"]
+            required_periods = ["1 Month", "3 Months", "6 Months",  "YTD", "1 Year", "2 Years"]
             
             if not master_q_df.empty:
                 cols_to_show.extend([p for p in required_periods if p in client_data.columns])
@@ -823,6 +864,49 @@ with main_tab2:
             cols_to_show = [c for c in cols_to_show if c in client_data.columns]
             
             display_df = client_data[cols_to_show].copy() if cols_to_show else client_data.copy()
+            
+            safe_name = "".join([c if c.isalnum() else "_" for c in selected_client])
+            client_file_path = os.path.join("Data", f"Portfolio_{safe_name}.xls")
+            
+            needs_download = True
+            if os.path.exists(client_file_path):
+                import datetime
+                file_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(client_file_path)).date()
+                if file_mtime == datetime.date.today():
+                    needs_download = False
+            
+            if needs_download:
+                import autodownload
+                with st.spinner(f"Downloading latest Portfolio for {selected_client}..."):
+                    try:
+                        autodownload.download_client_portfolio(selected_client)
+                    except Exception as e:
+                        st.error(f"Failed to download portfolio: {e}")
+            
+            if os.path.exists(client_file_path):
+                try:
+                    port_df = pd.read_excel(client_file_path, engine="openpyxl", header=4)
+                    if "Scheme Name" in port_df.columns and "XIRR" in port_df.columns:
+                        port_df["_match_name"] = port_df["Scheme Name"].astype(str).str.strip().str.lower()
+                        display_df["_match_name"] = display_df["Scheme Name"].astype(str).str.strip().str.lower()
+                        
+                        port_df_clean = port_df.dropna(subset=["XIRR"]).drop_duplicates(subset=["_match_name"])
+                        display_df = pd.merge(display_df, port_df_clean[["_match_name", "XIRR"]], on="_match_name", how="left")
+                        display_df.drop(columns=["_match_name"], inplace=True)
+                        display_df["XIRR"] = pd.to_numeric(display_df["XIRR"], errors="coerce")
+                        
+                        # Reorder columns to put XIRR after ARN No
+                        cols = list(display_df.columns)
+                        if "XIRR" in cols:
+                            cols.remove("XIRR")
+                            if "ARN No" in cols:
+                                arn_idx = cols.index("ARN No")
+                                cols.insert(arn_idx + 1, "XIRR")
+                            else:
+                                cols.insert(4, "XIRR")
+                            display_df = display_df[cols]
+                except Exception as e:
+                    pass
             
             if not master_q_df.empty:
                 for period in required_periods:
@@ -867,12 +951,20 @@ with main_tab2:
                     val = row.get(col)
                     if isinstance(val, str) and '(' in val and ')' in val and col in required_periods:
                         try:
-                            p_str = val.split('(')[1].split(')')[0]
-                            p_str = p_str.replace('%', '').strip()
-                            p_val = float(p_str)
-                            if p_val > 0:
+                            # The string is "Q_val (Pct_val)", extract the Quartile (Q_val)
+                            q_str = val.split('(')[0].strip()
+                            q_val = int(float(q_str))
+                            if q_val == 1:
                                 styles[i] = 'color: green;'
-                            elif p_val < 0:
+                            elif q_val in [3, 4]:
+                                styles[i] = 'color: red;'
+                        except:
+                            pass
+                    elif col == "XIRR" and pd.notna(val):
+                        try:
+                            if float(val) > 0:
+                                styles[i] = 'color: green;'
+                            elif float(val) < 0:
                                 styles[i] = 'color: red;'
                         except:
                             pass
@@ -890,26 +982,84 @@ with main_tab2:
                     height=600,
                     column_config={
                         "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
-                        "Scheme Name": st.column_config.TextColumn("Scheme Name", width="medium")
+                        "Scheme Name": st.column_config.TextColumn("Scheme Name", width="medium"),
+                        "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f"),
+                        "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
                     }
                 )
             
             with client_tab2:
-                st.markdown("#### 📊 Quartile Performance of Client's Schemes")
+                st.markdown("#### 📊 Performance Visualizations")
                 
                 if not master_q_df.empty:
                     avail_periods = [p for p in required_periods if p in client_data.columns]
+                    avail_pcts = [f"{p}_pct" for p in avail_periods if f"{p}_pct" in client_data.columns]
                     
                     if avail_periods:
-                        chart_df = client_data[["Scheme Name"] + avail_periods].copy()
-                        chart_df = chart_df.drop_duplicates(subset=["Scheme Name"])
-                        chart_df.set_index("Scheme Name", inplace=True)
-                        chart_df = chart_df.dropna(how="all")
+                        import plotly.express as px
+                        import plotly.graph_objects as go
                         
-                        if not chart_df.empty:
-                            st.bar_chart(chart_df, use_container_width=True)
-                        else:
-                            st.info("No quartile data found for these schemes.")
+                        chart_col1, chart_col2 = st.columns(2)
+                        
+                        with chart_col1:
+                            st.markdown("##### Quartile Heatmap")
+                            st.markdown("<small style='color:gray;'>Green = Q1 (Best), Red = Q4 (Worst)</small>", unsafe_allow_html=True)
+                            
+                            heatmap_df = client_data[["Scheme Name"] + avail_periods].copy()
+                            heatmap_df = heatmap_df.drop_duplicates(subset=["Scheme Name"]).set_index("Scheme Name")
+                            
+                            fig_heat = go.Figure(data=go.Heatmap(
+                                z=heatmap_df.values,
+                                x=heatmap_df.columns,
+                                y=heatmap_df.index,
+                                colorscale=[[0, '#4CAF50'], [0.33, '#8BC34A'], [0.66, '#FFC107'], [1, '#F44336']], 
+                                zmin=1, zmax=4,
+                                text=heatmap_df.values,
+                                texttemplate="%{text}",
+                                hoverinfo="x+y+z",
+                                showscale=False,
+                                xgap=2, ygap=2
+                            ))
+                            fig_heat.update_layout(
+                                margin=dict(l=0, r=0, t=10, b=0),
+                                height=max(250, len(heatmap_df) * 45),
+                                xaxis_title="",
+                                yaxis_title="",
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)"
+                            )
+                            st.plotly_chart(fig_heat, use_container_width=True)
+                        
+                        with chart_col2:
+                            if avail_pcts:
+                                st.markdown("##### Absolute Returns (%)")
+                                st.markdown("<small style='color:gray;'>Period-wise percentage returns</small>", unsafe_allow_html=True)
+                                
+                                pct_df = client_data[["Scheme Name"] + avail_pcts].copy()
+                                pct_df = pct_df.drop_duplicates(subset=["Scheme Name"]).set_index("Scheme Name")
+                                pct_df.columns = [c.replace('_pct', '') for c in pct_df.columns]
+                                
+                                pct_melt = pct_df.reset_index().melt(id_vars="Scheme Name", var_name="Period", value_name="Return (%)")
+                                
+                                fig_bar = px.bar(
+                                    pct_melt, 
+                                    x="Period", y="Return (%)", color="Scheme Name", barmode="group",
+                                    text_auto='.1f'
+                                )
+                                fig_bar.update_layout(
+                                    xaxis_title="", yaxis_title="Returns (%)",
+                                    margin=dict(l=0, r=0, t=10, b=0),
+                                    height=max(250, len(heatmap_df) * 45),
+                                    legend=dict(orientation="h", yanchor="bottom", y=-0.35, xanchor="center", x=0.5),
+                                    paper_bgcolor="rgba(0,0,0,0)",
+                                    plot_bgcolor="rgba(0,0,0,0)"
+                                )
+                                st.plotly_chart(fig_bar, use_container_width=True)
+                            else:
+                                st.info("No percentage return data available.")
+                        
+                    else:
+                        st.info("No quartile data found for these schemes.")
                 else:
                     st.info("Master fund barometer data not available for chart.")
     else:
