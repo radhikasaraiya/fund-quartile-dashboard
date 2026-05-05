@@ -94,19 +94,28 @@ def load_all_scheme_quartiles(data_file):
         return pd.DataFrame()
 
 
-st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
+import base64
+logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+if os.path.exists(logo_path):
+    with open(logo_path, "rb") as f:
+        logo_b64 = base64.b64encode(f.read()).decode()
+    st.markdown(
+        f"<div style='display:flex; align-items:center; gap:12px; margin-top:15px; margin-bottom:0px;'>"
+        f"<img src='data:image/jpeg;base64,{logo_b64}' style='height:45px; border-radius:6px;'/>"
+        f"<h3 style='margin:0;'>Anand Wealth Fund Analysis</h3>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
   
 main_tab1, main_tab2 = st.tabs(['Dashboard', 'Client Wise'])
 
 with main_tab1:
-    header_col, card1, card2, card3 = st.columns([1.5, 1, 1, 1])
     
     # with header_col:
     #     st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
     
-    card1_placeholder = card1.empty()
-    card2_placeholder = card2.empty()
-    card3_placeholder = card3.empty()
     # ----------------------------
     # Custom Styling
     # ----------------------------
@@ -453,6 +462,12 @@ with main_tab1:
                 sub_options = category_map[selected_category]
     
             selected_sub = st.selectbox("Sub Category", ["Select"] + sub_options)
+    
+        # Summary cards row right after subcategory dropdown
+        card1, card2, card3 = st.columns(3)
+        card1_placeholder = card1.empty()
+        card2_placeholder = card2.empty()
+        card3_placeholder = card3.empty()
     
         if selected_sub != "Select":
             sheet_map = {
