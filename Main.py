@@ -10,6 +10,12 @@ from reportlab.lib import pagesizes
 import requests
 import os
 
+import os
+import subprocess
+
+if not os.path.exists("/home/appuser/.cache/ms-playwright"):
+    subprocess.run(["playwright", "install", "chromium"])
+    
 st.set_page_config(layout="wide")
 
 @st.cache_data
