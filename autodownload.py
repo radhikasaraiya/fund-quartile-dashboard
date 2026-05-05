@@ -15,10 +15,10 @@ EMAIL = "pragneshsaraiya@hotmail.com"
 
 def _ensure_playwright_browsers():
     """Install Playwright Chromium browser if not already present (needed on Streamlit Cloud)."""
+    # Check if chromium is already installed by looking for the executable
     try:
         from playwright._impl._driver import compute_driver_executable
         driver_exec = compute_driver_executable()
-        # Quick check – if `chromium` channel already exists, skip install
         result = subprocess.run(
             [str(driver_exec), "install", "--dry-run", "chromium"],
             capture_output=True, text=True
@@ -27,10 +27,10 @@ def _ensure_playwright_browsers():
             return
     except Exception:
         pass
-    # Actually install chromium (with system deps on Linux)
+    # Download chromium browser binary (system deps come from packages.txt)
     print("Installing Playwright Chromium browser …")
     subprocess.run(
-        [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
+        [sys.executable, "-m", "playwright", "install", "chromium"],
         check=True
     )
 
