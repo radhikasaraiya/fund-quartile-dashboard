@@ -10,12 +10,8 @@ from reportlab.lib import pagesizes
 import requests
 import os
 
-import os
-import subprocess
 
-if not os.path.exists("/home/appuser/.cache/ms-playwright"):
-    subprocess.run(["playwright", "install", "chromium"])
-    
+
 st.set_page_config(layout="wide")
 
 @st.cache_data
@@ -904,7 +900,12 @@ with main_tab2:
             
             if os.path.exists(client_file_path):
                 try:
-                    port_df = pd.read_excel(client_file_path, engine="openpyxl", header=4)
+                    # Try openpyxl first, fall back to xlrd for genuine .xls files
+                    try:
+                        port_df = pd.read_excel(client_file_path, engine="openpyxl", header=4)
+                    except Exception:
+                        port_df = pd.read_excel(client_file_path, engine="xlrd", header=4)
+                    
                     if "Scheme Name" in port_df.columns and "XIRR" in port_df.columns:
                         port_df["_match_name"] = port_df["Scheme Name"].astype(str).str.strip().str.lower()
                         display_df["_match_name"] = display_df["Scheme Name"].astype(str).str.strip().str.lower()
@@ -924,8 +925,10 @@ with main_tab2:
                             else:
                                 cols.insert(4, "XIRR")
                             display_df = display_df[cols]
+                    else:
+                        st.warning(f"Portfolio file loaded but missing columns. Found: {list(port_df.columns[:8])}")
                 except Exception as e:
-                    pass
+                    st.warning(f"Could not read portfolio file: {e}")
             
             if not master_q_df.empty:
                 for period in required_periods:
