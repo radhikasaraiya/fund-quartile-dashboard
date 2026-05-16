@@ -31,6 +31,22 @@ def load_investors():
     except Exception as e:
         return pd.DataFrame()
 
+@st.cache_data
+def load_scheme_wise():
+    import os
+    import glob
+    try:
+        files = glob.glob('Data/SchemeWise_Fund_*.xls')
+        if not files:
+            return pd.DataFrame()
+        latest_file = max(files, key=os.path.getctime)
+        df = pd.read_excel(latest_file, sheet_name="Folio Wise")
+        if "AUM" in df.columns:
+            df["AUM"] = pd.to_numeric(df["AUM"], errors="coerce").fillna(0).astype(int)
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
 
 @st.cache_data(show_spinner=False)
 def load_all_scheme_quartiles(data_file):
@@ -111,7 +127,7 @@ if os.path.exists(logo_path):
 else:
     st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
   
-main_tab1, main_tab2 = st.tabs(['Dashboard', 'Client Wise'])
+main_tab1, main_tab2, main_tab3 = st.tabs(['Dashboard', 'Client Wise', 'Scheme Wise'])
 
 with main_tab1:
     
@@ -1106,3 +1122,161 @@ with main_tab2:
                     st.info("Master fund barometer data not available for chart.")
     else:
         st.warning("Client data not available.")
+
+with main_tab3:
+    st.markdown("### Scheme Wise Portfolio")
+    colA, colB = st.columns([1, 4])
+    with colA:
+        if st.button("Refresh Scheme Wise Data"):
+            import autodownload
+            with st.spinner("Downloading Scheme Wise Data..."):
+                try:
+                    autodownload.MyFundList()
+                    load_scheme_wise.clear()
+                    st.success("Scheme Wise Data Downloaded!")
+                except Exception as e:
+                    st.error(f"Failed: {e}")
+                    
+    scheme_df = load_scheme_wise()
+    if not scheme_df.empty:
+        st.markdown("##### Filter Options")
+        f_col1, f_col2, f_col3 = st.columns(3)
+        categories = scheme_df["Category Name"].dropna().unique().tolist()
+        sectors = scheme_df["Sector"].dropna().unique().tolist()
+        schemes = scheme_df["Scheme Name"].dropna().unique().tolist()
+        
+        with f_col1:
+            sel_cat = st.multiselect("Category Name", options=categories)
+        with f_col2:
+            sel_sec = st.multiselect("Sector", options=sectors)
+        with f_col3:
+            sel_sch = st.multiselect("Scheme Name", options=schemes)
+            
+        filtered_raw = scheme_df.copy()
+        if sel_cat: filtered_raw = filtered_raw[filtered_raw["Category Name"].isin(sel_cat)]
+        if sel_sec: filtered_raw = filtered_raw[filtered_raw["Sector"].isin(sel_sec)]
+        if sel_sch: filtered_raw = filtered_raw[filtered_raw["Scheme Name"].isin(sel_sch)]
+        
+        # Group to get unique Category Name, Sector, Scheme Name with AUM sum
+        grouped_scheme = filtered_raw.groupby(["Category Name", "Sector", "Scheme Name"])["AUM"].sum().reset_index()
+        
+        # Merge with quartile details
+        master_q_df = load_all_scheme_quartiles(data_file)
+        required_periods = ["1 Month", "3 Months", "6 Months", "YTD", "1 Year", "2 Years"]
+        
+        if not master_q_df.empty:
+            grouped_scheme["_match_name"] = grouped_scheme["Scheme Name"].astype(str).str.strip().str.lower()
+            master_q_copy = master_q_df.copy()
+            master_q_copy["_match_name"] = master_q_copy["Scheme Name"].astype(str).str.strip().str.lower()
+            
+            merged_scheme = pd.merge(grouped_scheme, master_q_copy.drop(columns=["Scheme Name"]), on="_match_name", how="left")
+            merged_scheme.drop(columns=["_match_name"], inplace=True)
+            
+            # Format quartile and percentage together
+            for period in required_periods:
+                if period in merged_scheme.columns:
+                    pct_col = f"{period}_pct"
+                    if pct_col in merged_scheme.columns:
+                        def format_cell(row, p=period, pc=pct_col):
+                            q = row[p]
+                            pct = row[pc]
+                            if pd.isna(q): return ""
+                            q_str = str(int(q)) if pd.notna(q) and q == q // 1 else str(q)
+                            if pd.isna(pct): return q_str
+                            
+                            if isinstance(pct, (int, float)):
+                                pct_str = f"{pct:.2f}"
+                            else:
+                                pct_str = str(pct)
+                            return f"{q_str} ({pct_str})"
+                        
+                        merged_scheme[period] = merged_scheme.apply(format_cell, axis=1)
+
+            # Drop percentage columns to keep the table clean
+            cols_to_drop = [c for c in merged_scheme.columns if str(c).endswith("_pct")]
+            merged_scheme.drop(columns=cols_to_drop, inplace=True, errors="ignore")
+        else:
+            merged_scheme = grouped_scheme
+            
+        # Add Sr. column
+        merged_scheme.insert(0, "Sr.", range(1, len(merged_scheme) + 1))
+        
+        # Apply quartile coloring
+        def color_cells_quartile(val):
+            val_str = str(val).strip()
+            if val_str.startswith("1"): return 'background-color: rgba(39, 174, 96, 0.4)'
+            elif val_str.startswith("2"): return 'background-color: rgba(241, 196, 15, 0.4)'
+            elif val_str.startswith("3"): return 'background-color: rgba(230, 126, 34, 0.4)'
+            elif val_str.startswith("4"): return 'background-color: rgba(231, 76, 60, 0.4)'
+            return ''
+            
+        # applymap is deprecated in newer pandas, use map, but applymap works if map doesn't exist
+        try:
+            styled_df = merged_scheme.style.map(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
+        except AttributeError:
+            styled_df = merged_scheme.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
+            
+        st.markdown("##### Schemes Summary")
+        event = st.dataframe(
+            styled_df, 
+            use_container_width=True, 
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
+        
+        selected_rows = event.selection.rows
+        if selected_rows:
+            selected_idx = selected_rows[0]
+            selected_scheme_name = merged_scheme.iloc[selected_idx]["Scheme Name"]
+            
+            st.markdown(f"### Clients holding: {selected_scheme_name}")
+            
+            # Filter original scheme_df to find all clients holding this scheme
+            detail_df = scheme_df[scheme_df["Scheme Name"] == selected_scheme_name].copy()
+            
+            cols_to_show = ["Client Name", "Family Head Name", "AUM", "Folio", "ARN No"]
+            if "XIRR" in detail_df.columns:
+                cols_to_show.append("XIRR")
+                
+            detail_display = detail_df[[c for c in cols_to_show if c in detail_df.columns]].copy()
+            
+            # Merge with quartile data for this scheme
+            if not master_q_df.empty:
+                detail_display["_match_name"] = selected_scheme_name.strip().lower()
+                detail_merged = pd.merge(detail_display, master_q_copy.drop(columns=["Scheme Name"]), on="_match_name", how="left")
+                detail_merged.drop(columns=["_match_name"], inplace=True)
+                
+                # Format quartile and percentage together for details
+                for period in required_periods:
+                    if period in detail_merged.columns:
+                        pct_col = f"{period}_pct"
+                        if pct_col in detail_merged.columns:
+                            def format_cell_detail(row, p=period, pc=pct_col):
+                                q = row[p]
+                                pct = row[pc]
+                                if pd.isna(q): return ""
+                                q_str = str(int(q)) if pd.notna(q) and q == q // 1 else str(q)
+                                if pd.isna(pct): return q_str
+                                if isinstance(pct, (int, float)): pct_str = f"{pct:.2f}"
+                                else: pct_str = str(pct)
+                                return f"{q_str} ({pct_str})"
+                            detail_merged[period] = detail_merged.apply(format_cell_detail, axis=1)
+
+                cols_to_drop = [c for c in detail_merged.columns if str(c).endswith("_pct")]
+                detail_merged.drop(columns=cols_to_drop, inplace=True, errors="ignore")
+            else:
+                detail_merged = detail_display
+                
+            # Add Sr. column
+            detail_merged.insert(0, "Sr.", range(1, len(detail_merged) + 1))
+            
+            try:
+                detail_styled = detail_merged.style.map(color_cells_quartile, subset=[c for c in required_periods if c in detail_merged.columns])
+            except AttributeError:
+                detail_styled = detail_merged.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in detail_merged.columns])
+                
+            st.dataframe(detail_styled, use_container_width=True, hide_index=True)
+            
+    else:
+        st.info("No Scheme Wise Data found. Please click 'Refresh Scheme Wise Data' above to download.")

@@ -104,7 +104,7 @@ def run():
 def MyFundList():
     _ensure_playwright_browsers()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -135,10 +135,9 @@ def MyFundList():
             value="AUMSchemeWise"
         )
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(2000) # Wait for the page to update after selection
 
-        # Tick With Investment Amount (Skipped for Scheme Wise as the checkbox is hidden)
-        # page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
+        # Tick With Investment Amount
+        page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
 
         # Download Excel
         with page.expect_download() as download_info:
