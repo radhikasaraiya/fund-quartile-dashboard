@@ -899,6 +899,8 @@ with main_tab2:
                         st.error(f"Failed to download portfolio: {e}")
             
             if os.path.exists(client_file_path):
+                
+                
                 try:
                     # Try openpyxl first, fall back to xlrd for genuine .xls files
                     try:
@@ -915,16 +917,21 @@ with main_tab2:
                         display_df.drop(columns=["_match_name"], inplace=True)
                         display_df["XIRR"] = pd.to_numeric(display_df["XIRR"], errors="coerce")
                         
-                        # Reorder columns to put XIRR after ARN No
+                        # Reorder columns to put XIRR before AUM
                         cols = list(display_df.columns)
-                        if "XIRR" in cols:
-                            cols.remove("XIRR")
-                            if "ARN No" in cols:
-                                arn_idx = cols.index("ARN No")
-                                cols.insert(arn_idx + 1, "XIRR")
-                            else:
-                                cols.insert(4, "XIRR")
-                            display_df = display_df[cols]
+                        print(cols)
+                        # # Ensure XIRR exists and is before AUM
+                        # if "XIRR" in display_df.columns:
+                        #     cols = list(display_df.columns)
+                        #     cols.remove("XIRR")
+                            
+                        #     if "AUM" in cols:
+                        #         aum_index = cols.index("AUM")
+                        #         cols.insert(aum_index, "XIRR")
+                        #     else:
+                        #         cols.append("XIRR")
+                            
+                        #     display_df = display_df[cols]
                     else:
                         st.warning(f"Portfolio file loaded but missing columns. Found: {list(port_df.columns[:8])}")
                 except Exception as e:
@@ -948,7 +955,7 @@ with main_tab2:
                                     pct_str = str(pct)
                                 return f"{q_str} ({pct_str})"
                             
-                            display_df[period] = client_data.apply(format_cell, axis=1)
+                            display_df[period] = client_data.apply(format_cell, axis=1).values
             
             display_df.insert(0, "Sr.", range(1, len(display_df) + 1))
             
@@ -991,6 +998,19 @@ with main_tab2:
                         except:
                             pass
                 return styles
+
+            # Ensure XIRR exists and is before AUM
+            if "XIRR" in display_df.columns:
+                cols = list(display_df.columns)
+                cols.remove("XIRR")
+                
+                if "AUM" in cols:
+                    aum_index = cols.index("AUM")
+                    cols.insert(aum_index, "XIRR")
+                else:
+                    cols.append("XIRR")
+                
+                display_df = display_df[cols]
 
             styled_display_df = display_df.style.apply(highlight_and_color, axis=1)
             

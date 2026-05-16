@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import datetime
 from playwright.sync_api import sync_playwright
 
 # ====== CONFIG ======
@@ -96,9 +97,68 @@ def run():
         
         download.save_as(file_path)
 
-        print(f"Download completed successfully ✅. Saved to {file_path}")
+        print(f"Download completed successfully [Success]. Saved to {file_path}")
 
         browser.close()
+
+def MyFundList():
+    _ensure_playwright_browsers()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+
+        # ---------------- LOGIN ----------------
+        page.goto(URL)
+        page.wait_for_load_state("networkidle")
+
+        page.get_by_role("textbox", name="Email").fill(EMAIL)
+        page.get_by_role("textbox", name="Username").fill(USERNAME)
+        page.get_by_role("textbox", name="Password").fill(PASSWORD)
+        page.get_by_role("button", name="Login").click()
+
+       
+        # ---------------- NAVIGATION ----------------
+        # Wait properly after login
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(4000)
+
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(3000)
+        # Go to AUM page
+        page.goto("https://www.money2management.com/MF_AUM.aspx")
+        page.wait_for_load_state("networkidle")
+
+        # Select Scheme Wise
+        page.select_option(
+            "#ctl00_ContentPlaceHolder1_rbtnsort",
+            value="AUMSchemeWise"
+        )
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000) # Wait for the page to update after selection
+
+        # Tick With Investment Amount (Skipped for Scheme Wise as the checkbox is hidden)
+        # page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
+
+        # Download Excel
+        with page.expect_download() as download_info:
+            page.get_by_role("button", name="Excel").click()
+
+        download = download_info.value
+        
+        # Ensure the directory exists
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        file_path = os.path.join(DOWNLOAD_DIR, f"SchemeWise_Fund_{today_str}.xls")
+        
+        download.save_as(file_path)
+
+        print(f"Download completed successfully [Success]. Saved to {file_path}")
+
+        browser.close()
+
+
 
 def download_client_portfolio(client_name):
     _ensure_playwright_browsers()
@@ -123,16 +183,22 @@ def download_client_portfolio(client_name):
         page.goto("https://www.money2management.com/MF_MutualFundPortFoilo.aspx")
         page.wait_for_load_state("networkidle")
 
+        # Select Individual Radio Button
+        page.check("#ctl00_ContentPlaceHolder1_rbtn_clienttype_1")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(3000) # Wait for UpdatePanel to re-populate
+
         # Select Client
         page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_ClientName", state="attached")
         options = page.locator("#ctl00_ContentPlaceHolder1_drp_ClientName option").element_handles()
         selected_value = None
+        print(f"Found {len(options)} options.")
+
         for opt in options:
-            text = opt.inner_text()
-            if client_name.lower() in text.lower():
+            text = opt.text_content()
+            if text and client_name.strip().lower() in text.lower():
                 selected_value = opt.get_attribute("value")
                 break
-                
         if not selected_value:
             print(f"Could not find client: {client_name}")
             browser.close()
@@ -157,7 +223,7 @@ def download_client_portfolio(client_name):
         file_path = os.path.join(DOWNLOAD_DIR, f"Portfolio_{safe_name}.xls")
         
         download.save_as(file_path)
-        print(f"Portfolio download completed ✅. Saved to {file_path}")
+        print(f"Portfolio download completed [Success]. Saved to {file_path}")
 
         browser.close()
         return file_path
@@ -165,4 +231,6 @@ def download_client_portfolio(client_name):
 
 
 if __name__ == "__main__":
-    download_client_portfolio("AAKASH ISHVARLAL SHAH")
+   # download_client_portfolio("RADHIKA PRAGNESH SARAIYA")   
+    #download_client_portfolio("AAFRIN WASIM QURESHI")
+    MyFundList()
