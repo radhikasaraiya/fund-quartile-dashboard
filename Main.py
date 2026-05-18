@@ -120,19 +120,19 @@ if os.path.exists(logo_path):
     st.markdown(
         f"<div style='display:flex; align-items:center; gap:12px; margin-top:15px; margin-bottom:0px;'>"
         f"<img src='data:image/jpeg;base64,{logo_b64}' style='height:45px; border-radius:6px;'/>"
-        f"<h3 style='margin:0;'>Anand Wealth Fund Analysis</h3>"
+        f"<h3 style='margin:0;'>Quartile Fund Analysis</h3>"
         f"</div>",
         unsafe_allow_html=True
     )
 else:
-    st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Quartile Fund Analysis</h3>", unsafe_allow_html=True)
   
 main_tab1, main_tab2, main_tab3 = st.tabs(['Dashboard', 'Client Wise', 'Scheme Wise'])
 
 with main_tab1:
     
     # with header_col:
-    #     st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Anand Wealth Fund Analysis</h3>", unsafe_allow_html=True)
+    #     st.markdown("<h3 style='margin-top: 15px; margin-bottom: 0px;'>Quartile  Fund Analysis</h3>", unsafe_allow_html=True)
     
     # ----------------------------
     # Custom Styling
@@ -229,7 +229,7 @@ with main_tab1:
             worksheet.cell(row=4, column=1, value=f"Report: {filename}")
     
         st.download_button(
-            "📥",
+            "📊",
             data=output.getvalue(),
             file_name=f"{filename}_{today}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -237,34 +237,165 @@ with main_tab1:
             key=f"excel_{button_key}"
         )
     
+    def format_df_for_export(df, required_periods):
+        display_df = pd.DataFrame(index=df.index)
+        display_df["Sr."] = range(1, len(df) + 1)
+        display_df["Scheme Name"] = df["Scheme Name"]
+        
+        for period in required_periods:
+            if period in df.columns:
+                pct_col = f"{period}_pct"
+                if pct_col in df.columns:
+                    def format_cell(row, p=period, pc=pct_col):
+                        q = row[p]
+                        pct = row[pc]
+                        if pd.isna(q): return ""
+                        q_str = str(int(q)) if pd.notna(q) and q == q // 1 else str(q)
+                        if pd.isna(pct): return q_str
+                        
+                        if isinstance(pct, (int, float)):
+                            pct_str = f"{pct:.2f}"
+                        else:
+                            pct_str = str(pct)
+                        return f"{q_str} ({pct_str})"
+                    
+                    display_df[period] = df.apply(format_cell, axis=1)
+                else:
+                    display_df[period] = df[period]
+        return display_df
+
     def render_export_pdf(df_dict, filename, category, subcategory, button_key):
         today = datetime.date.today().strftime("%d-%b-%Y")
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=pagesizes.A4)
+        doc = SimpleDocTemplate(
+            buffer, pagesize=pagesizes.landscape(pagesizes.A4),
+            topMargin=75, bottomMargin=20, leftMargin=30, rightMargin=30
+        )
         elements = []
-    
         styles = getSampleStyleSheet()
-        elements.append(Paragraph(f"{filename}", styles["Heading2"]))
-        elements.append(Paragraph(f"<b>Category:</b> {category} &nbsp;&nbsp;&nbsp; <b>Subcategory:</b> {subcategory} &nbsp;&nbsp;&nbsp; <b>Date:</b> {today}", styles["Normal"]))
-        elements.append(Spacer(1, 12))
-    
+        
+        # Header row: Logo | Company Name | Date | Category/Sub — all on one line
+        logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+        header_cells = []
+        if os.path.exists(logo_path):
+            from reportlab.platypus import Image as RLImage
+            try:
+                logo = RLImage(logo_path, width=80, height=35)
+                header_cells.append(logo)
+            except Exception:
+                header_cells.append(Paragraph("", styles["Normal"]))
+        else:
+            header_cells.append(Paragraph("", styles["Normal"]))
+        
+        header_cells.append(Paragraph("<b>Quartile Fund Report</b>", styles["Heading2"]))
+        header_cells.append(Paragraph(f"<b>Date:</b> {today}", styles["Normal"]))
+        header_cells.append(Paragraph(f"<b>Category:</b> {category}<br/><b>Subcategory:</b> {subcategory}", styles["Normal"]))
+        
+        page_width = pagesizes.landscape(pagesizes.A4)[0] - 60
+        header_table = Table([header_cells], colWidths=[90, page_width * 0.35, page_width * 0.2, page_width * 0.35])
+        header_table.setStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ])
+        
+        def draw_header(canvas, document):
+            canvas.saveState()
+            header_table.wrapOn(canvas, page_width, 40)
+            header_table.drawOn(canvas, 30, 545)
+            canvas.restoreState()
+            
+        required_periods = ["1 Month", "3 Months", "6 Months", "YTD", "1 Year", "2 Years"]
+        
+        from reportlab.lib.styles import ParagraphStyle
+        cell_style_left = ParagraphStyle(
+            'CellClassLeftMain1',
+            parent=styles['Normal'],
+            fontSize=6,
+            leading=7.5,
+            alignment=0  # Left aligned
+        )
+        cell_style_center = ParagraphStyle(
+            'CellClassCenterMain1',
+            parent=styles['Normal'],
+            fontSize=6,
+            leading=7.5,
+            alignment=1  # Center aligned
+        )
+        header_style = ParagraphStyle(
+            'HeaderClassMain1',
+            parent=styles['Normal'],
+            fontSize=6.5,
+            leading=8.5,
+            textColor=colors.white,
+            alignment=1  # Center aligned
+        )
+        
         for name, df in df_dict.items():
             if not df.empty:
                 elements.append(Paragraph(f"<b>{name}</b>", styles["Heading3"]))
                 elements.append(Spacer(1, 6))
-                table_data = [df.columns.tolist()] + df.values.tolist()
-                table = Table(table_data)
+                
+                # Format dataframe
+                formatted_df = format_df_for_export(df, required_periods)
+                formatted_df = formatted_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+                
+                # Build table data with auto-wrapping Paragraphs
+                headers = [Paragraph(f"<b>{col}</b>", header_style) for col in formatted_df.columns]
+                table_data = [headers]
+                
+                text_cols = {"Scheme Name"}
+                for _, row in formatted_df.iterrows():
+                    row_cells = []
+                    for col in formatted_df.columns:
+                        val = row[col]
+                        style = cell_style_left if col in text_cols else cell_style_center
+                        row_cells.append(Paragraph(val, style))
+                    table_data.append(row_cells)
+                
+                col_names = list(formatted_df.columns)
+                avail_width = pagesizes.landscape(pagesizes.A4)[0] - 72
+                
+                narrow_cols = {"Sr.": 20}
+                period_cols = {p: 45 for p in required_periods}
+                
+                col_widths = []
+                fixed_total = 0
+                has_scheme = "Scheme Name" in col_names
+                
+                for c in col_names:
+                    if c == "Scheme Name":
+                        col_widths.append(0)
+                    elif c in narrow_cols:
+                        col_widths.append(narrow_cols[c])
+                        fixed_total += narrow_cols[c]
+                    elif c in period_cols:
+                        col_widths.append(period_cols[c])
+                        fixed_total += period_cols[c]
+                    else:
+                        col_widths.append(50)
+                        fixed_total += 50
+                        
+                if has_scheme:
+                    scheme_idx = col_names.index("Scheme Name")
+                    col_widths[scheme_idx] = max(avail_width - fixed_total, 120)
+                
+                table = Table(table_data, colWidths=col_widths, repeatRows=1)
                 table.setStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.black)
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                    ('ALIGN', (0, 0), (0, -1), 'CENTER'),
                 ])
                 elements.append(table)
-                elements.append(Spacer(1, 12))
-    
-        doc.build(elements)
-    
+                elements.append(Spacer(1, 15))
+        
+        doc.build(elements, onFirstPage=draw_header, onLaterPages=draw_header)
+        
         st.download_button(
-            "📄",
+            "📕",
             data=buffer.getvalue(),
             file_name=f"{filename}_{today}.pdf",
             mime="application/pdf",
@@ -275,26 +406,128 @@ with main_tab1:
     def render_print_button(df_dict, filename, category, subcategory):
         today = datetime.date.today().strftime("%d-%b-%Y")
         
+        logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+        logo_html = ""
+        if os.path.exists(logo_path):
+            import base64 as b64mod
+            with open(logo_path, "rb") as f:
+                logo_b64 = b64mod.b64encode(f.read()).decode("utf-8")
+            logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:50px;margin-bottom:10px;">'
+        
+        required_periods = ["1 Month", "3 Months", "6 Months", "YTD", "1 Year", "2 Years"]
+        
         tables_html = ""
         for name, df in df_dict.items():
             if not df.empty:
-                tables_html += f"<h3>{name}</h3>"
-                tables_html += df.to_html(index=False)
+                # Format dataframe for printing
+                formatted_df = format_df_for_export(df, required_periods)
+                formatted_df = formatted_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+                
+                tables_html += f"<h3 style='color: #1f77b4; margin-top: 20px; border-bottom: 1px solid #1f77b4; padding-bottom: 4px;'>{name}</h3>"
+                tables_html += formatted_df.to_html(index=False)
                 tables_html += "<br>"
-    
+                
         html = f"""
         <html><head><title>{filename}</title>
         <style>
-            body {{ font-family: Arial, sans-serif; padding: 20px; }}
-            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-            th {{ background-color: #f2f2f2; }}
+            body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
+            
+            /* Repeating Page Header */
+            .header {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 50px;
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                border-bottom: 2px solid #1f77b4;
+                background-color: white;
+                padding: 5px 20px;
+                z-index: 1000;
+            }}
+            .header h2 {{ margin: 0; color: #1f77b4; white-space: nowrap; font-size: 18px; }}
+            .header span {{ color: #555; white-space: nowrap; font-size: 12px; }}
+            .header-space {{
+                height: 65px;
+            }}
+            
+            /* Outer layout table to handle printing page margins & repeating spacing */
+            .layout-table {{
+                width: 100%;
+                border-collapse: collapse;
+                border: none;
+            }}
+            .layout-cell {{
+                border: none;
+                padding: 0 20px;
+            }}
+            
+            /* Data Table style (from pandas DataFrame) */
+            table.dataframe {{
+                border-collapse: collapse;
+                width: 100%;
+                font-size: 11px;
+                margin-top: 10px;
+            }}
+            table.dataframe th, table.dataframe td {{
+                border: 1px solid #ddd;
+                padding: 6px 8px;
+                text-align: left;
+            }}
+            table.dataframe th {{
+                background-color: #1f77b4;
+                color: white;
+            }}
+            table.dataframe tr:nth-child(even) {{
+                background-color: #f8f9fa;
+            }}
+            
+            thead {{
+                display: table-header-group;
+            }}
+            tbody {{
+                display: table-row-group;
+            }}
+            tr {{
+                page-break-inside: avoid;
+            }}
+            @page {{
+                margin: 10mm;
+                size: landscape;
+            }}
         </style>
         </head><body>
-        <h2>{filename}</h2>
-        <p><b>Category:</b> {category} &nbsp;|&nbsp; <b>Subcategory:</b> {subcategory} &nbsp;|&nbsp; <b>Date:</b> {today}</p>
-        {tables_html}
-        <script>window.print();</script>
+        
+        <div class="header">
+            {logo_html}
+            <h2>Quartile Fund Report</h2>
+            <span><b>Date:</b> {today}</span>
+            <span><b>Category:</b> {category}</span>
+            <span><b>Subcategory:</b> {subcategory}</span>
+        </div>
+        
+        <table class="layout-table">
+            <thead>
+                <tr>
+                    <td class="layout-cell"><div class="header-space">&nbsp;</div></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="layout-cell">
+                        {tables_html}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <script>
+            window.onload = function() {{
+                window.print();
+            }}
+        </script>
         </body></html>
         """
         
@@ -304,9 +537,9 @@ with main_tab1:
         st.markdown(
             f"""
             <a href="{href}" target="_blank" 
-            style="padding:5px 10px;border-radius:8px;border:1px solid rgba(128, 128, 128, 0.5);background:transparent;cursor:pointer;text-decoration:none;color:inherit;display:inline-block;height:38px;line-height:26px;text-align:center;"
+            style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
             title="Print">
-            🖨
+            🖨️
             </a>
             """,
             unsafe_allow_html=True
@@ -436,10 +669,10 @@ with main_tab1:
         st.markdown("<div style='padding-top: 10px;'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("Fetch Fund Data"):
+            if st.button("📈 Fetch Fund Data", help="Fetch and update the latest mutual fund performance and quartile data from FTP server"):
                 get_fund_data.clear()
         with c2:
-            if st.button("Fetch AUM Data"):
+            if st.button("💼 Fetch AUM Data", help="Fetch and update the latest client assets under management (AUM) details"):
                 import autodownload
                 with st.spinner("Downloading AUM Data..."):
                     try:
@@ -710,10 +943,10 @@ with main_tab1:
                     }
     
                     with btn1:
-                        render_export_excel(master_df_dict, "Good_and_Low_Performing", selected_category, selected_sub, key)
+                        render_export_pdf(master_df_dict, "Good_and_Low_Performing", selected_category, selected_sub, key)
     
                     with btn2:
-                        render_export_pdf(master_df_dict, "Good_and_Low_Performing", selected_category, selected_sub, key)
+                        render_export_excel(master_df_dict, "Good_and_Low_Performing", selected_category, selected_sub, key)
     
                     with btn3:
                         render_print_button(master_df_dict, "Good_and_Low_Performing", selected_category, selected_sub)
@@ -871,7 +1104,333 @@ with main_tab2:
     investor_df = load_investors()
     if not investor_df.empty and "Client Name" in investor_df.columns:
         client_names = sorted(investor_df["Client Name"].dropna().unique().tolist())
-        selected_client = st.selectbox("Select Client", ["Select"] + client_names)
+        
+        # --- Client-wise export helper functions ---
+        def client_export_excel(display_data, client_name, button_key):
+            today = datetime.date.today().strftime("%d-%b-%Y")
+            output = BytesIO()
+            
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # Clean data for export
+                export_df = display_data.copy()
+                if "AUM" in export_df.columns:
+                    export_df["AUM"] = export_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+                if "Sr." in export_df.columns:
+                    export_df["Sr."] = export_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+                export_df = export_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+                export_df.to_excel(writer, index=False, startrow=3, sheet_name='Client Report')
+                ws = writer.sheets['Client Report']
+                
+                # Insert logo
+                logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+                if os.path.exists(logo_path):
+                    from openpyxl.drawing.image import Image as XlImage
+                    img = XlImage(logo_path)
+                    img.width = 80
+                    img.height = 35
+                    ws.add_image(img, 'A1')
+                
+                ws.cell(row=1, column=3, value="Quartile Fund Report")
+                ws.cell(row=1, column=5, value=f"Date: {today}")
+                ws.cell(row=1, column=7, value=f"Client: {client_name}")
+            
+            st.download_button(
+                "📊",
+                data=output.getvalue(),
+                file_name=f"Client_{client_name}_{today}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Download Excel",
+                key=f"client_excel_{button_key}"
+            )
+        
+        def client_export_pdf(display_data, client_name, button_key):
+            today = datetime.date.today().strftime("%d-%b-%Y")
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(
+                buffer, pagesize=pagesizes.landscape(pagesizes.A4),
+                topMargin=75, bottomMargin=20, leftMargin=30, rightMargin=30
+            )
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Header row: Logo | Company Name | Date | Client — all on one line
+            logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+            header_cells = []
+            if os.path.exists(logo_path):
+                from reportlab.platypus import Image as RLImage
+                try:
+                    logo = RLImage(logo_path, width=80, height=35)
+                    header_cells.append(logo)
+                except Exception:
+                    header_cells.append(Paragraph("", styles["Normal"]))
+            else:
+                header_cells.append(Paragraph("", styles["Normal"]))
+            
+            header_cells.append(Paragraph("<b>Quartile Fund Report</b>", styles["Heading2"]))
+            header_cells.append(Paragraph(f"<b>Date:</b> {today}", styles["Normal"]))
+            header_cells.append(Paragraph(f"<b>Client:</b> {client_name}", styles["Normal"]))
+            
+            page_width = pagesizes.landscape(pagesizes.A4)[0] - 60
+            header_table = Table([header_cells], colWidths=[90, page_width * 0.4, page_width * 0.2, page_width * 0.3])
+            header_table.setStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ])
+            
+            def draw_header(canvas, document):
+                canvas.saveState()
+                header_table.wrapOn(canvas, page_width, 40)
+                header_table.drawOn(canvas, 30, 545)
+                canvas.restoreState()
+            
+            if not display_data.empty:
+                from reportlab.lib.styles import ParagraphStyle
+                # Prepare data: format AUM with commas, replace None/nan with blank
+                pdf_df = display_data.copy()
+                if "AUM" in pdf_df.columns:
+                    pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+                if "Sr." in pdf_df.columns:
+                    pdf_df["Sr."] = pdf_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+                pdf_df = pdf_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+                
+                # Define paragraph styles for auto-wrapping inside table cells
+                cell_style_left = ParagraphStyle(
+                    'CellClassLeftClient',
+                    parent=styles['Normal'],
+                    fontSize=6,
+                    leading=7.5,
+                    alignment=0  # Left aligned
+                )
+                cell_style_center = ParagraphStyle(
+                    'CellClassCenterClient',
+                    parent=styles['Normal'],
+                    fontSize=6,
+                    leading=7.5,
+                    alignment=1  # Center aligned
+                )
+                header_style = ParagraphStyle(
+                    'HeaderClassClient',
+                    parent=styles['Normal'],
+                    fontSize=6.5,
+                    leading=8.5,
+                    textColor=colors.white,
+                    alignment=1  # Center aligned
+                )
+                
+                # Build table data with auto-wrapping Paragraphs for all columns
+                headers = [Paragraph(f"<b>{col}</b>", header_style) for col in pdf_df.columns]
+                table_data = [headers]
+                
+                text_cols = {"Scheme Name"}
+                for _, row in pdf_df.iterrows():
+                    row_cells = []
+                    for col in pdf_df.columns:
+                        val = row[col]
+                        style = cell_style_left if col in text_cols else cell_style_center
+                        row_cells.append(Paragraph(val, style))
+                    table_data.append(row_cells)
+                
+                # Smart column widths: explicit sizes per column type
+                n_cols = len(pdf_df.columns)
+                avail_width = pagesizes.landscape(pagesizes.A4)[0] - 72
+                col_names = list(pdf_df.columns)
+                
+                # Define explicit widths for known columns
+                narrow_cols = {"Sr.": 20, "XIRR": 42}
+                period_cols = {"1 Month": 42, "3 Months": 42, "6 Months": 42, "YTD": 42, "1 Year": 42, "2 Years": 42}
+                medium_cols = {"Folio": 55, "ARN No": 55, "AUM": 55}
+                
+                col_widths = []
+                fixed_total = 0
+                has_scheme = "Scheme Name" in col_names
+                
+                for c in col_names:
+                    if c == "Scheme Name":
+                        col_widths.append(0)  # placeholder, calculated below
+                    elif c in narrow_cols:
+                        col_widths.append(narrow_cols[c])
+                        fixed_total += narrow_cols[c]
+                    elif c in period_cols:
+                        col_widths.append(period_cols[c])
+                        fixed_total += period_cols[c]
+                    elif c in medium_cols:
+                        col_widths.append(medium_cols[c])
+                        fixed_total += medium_cols[c]
+                    else:
+                        col_widths.append(50)
+                        fixed_total += 50
+                
+                # Give Scheme Name all remaining width
+                if has_scheme:
+                    scheme_idx = col_names.index("Scheme Name")
+                    col_widths[scheme_idx] = max(avail_width - fixed_total, 120)
+                
+                table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                table.setStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                    ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ])
+                elements.append(table)
+            
+            doc.build(elements, onFirstPage=draw_header, onLaterPages=draw_header)
+            
+            st.download_button(
+                "📕",
+                data=buffer.getvalue(),
+                file_name=f"Client_{client_name}_{today}.pdf",
+                mime="application/pdf",
+                help="Download PDF",
+                key=f"client_pdf_{button_key}"
+            )
+        
+        def client_print_button(display_data, client_name, button_key):
+            today = datetime.date.today().strftime("%d-%b-%Y")
+            
+            logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+            logo_html = ""
+            if os.path.exists(logo_path):
+                import base64 as b64mod
+                with open(logo_path, "rb") as f:
+                    logo_b64 = b64mod.b64encode(f.read()).decode("utf-8")
+                logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:50px;margin-bottom:10px;">'
+            
+            # Clean data for print: format AUM, remove None
+            print_df = display_data.copy()
+            if "AUM" in print_df.columns:
+                print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+            if "Sr." in print_df.columns:
+                print_df["Sr."] = print_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+            print_df = print_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+            
+            table_html = print_df.to_html(index=False) if not print_df.empty else ""
+            
+            html = f"""
+            <html><head><title>Client Report - {client_name}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
+                
+                /* Repeating Page Header */
+                .header {{
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 50px;
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
+                    border-bottom: 2px solid #1f77b4;
+                    background-color: white;
+                    padding: 5px 20px;
+                    z-index: 1000;
+                }}
+                .header h2 {{ margin: 0; color: #1f77b4; white-space: nowrap; }}
+                .header span {{ color: #555; white-space: nowrap; font-size: 14px; }}
+                .header-space {{
+                    height: 65px;
+                }}
+                
+                /* Outer layout table to handle printing page margins & repeating spacing */
+                .layout-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: none;
+                }}
+                .layout-cell {{
+                    border: none;
+                    padding: 0 20px;
+                }}
+                
+                /* Data Table style (from pandas DataFrame) */
+                table.dataframe {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    font-size: 12px;
+                    margin-top: 10px;
+                }}
+                table.dataframe th, table.dataframe td {{
+                    border: 1px solid #ddd;
+                    padding: 6px 8px;
+                    text-align: left;
+                }}
+                table.dataframe th {{
+                    background-color: #1f77b4;
+                    color: white;
+                }}
+                table.dataframe tr:nth-child(even) {{
+                    background-color: #f8f9fa;
+                }}
+                
+                /* Instruct browser to repeat table headers and avoid orphan rows */
+                thead {{
+                    display: table-header-group;
+                }}
+                tbody {{
+                    display: table-row-group;
+                }}
+                tr {{
+                    page-break-inside: avoid;
+                }}
+                @page {{
+                    margin: 10mm;
+                    size: landscape;
+                }}
+            </style>
+            </head><body>
+            
+            <div class="header">
+                {logo_html}
+                <h2>Quartile Fund Report</h2>
+                <span><b>Date:</b> {today}</span>
+                <span><b>Client:</b> {client_name}</span>
+            </div>
+            
+            <table class="layout-table">
+                <thead>
+                    <tr>
+                        <td class="layout-cell"><div class="header-space">&nbsp;</div></td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="layout-cell">
+                            {table_html}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <script>
+                window.onload = function() {{
+                    window.print();
+                }}
+            </script>
+            </body></html>
+            """
+            
+            b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
+            href = f"data:text/html;base64,{b64_data}"
+            
+            st.markdown(
+                f"""
+                <a href="{href}" target="_blank" 
+                style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
+                title="Print">
+                🖨️
+                </a>
+                """,
+                unsafe_allow_html=True
+            )
+        
+        # --- Layout: Selectbox + Export buttons ---
+        sel_col, btn_pdf_col, btn_excel_col, btn_print_col = st.columns([4, 0.3, 0.3, 0.3])
+        with sel_col:
+            selected_client = st.selectbox("Select Client", ["Select"] + client_names)
         if selected_client != "Select":
             client_data = investor_df[investor_df["Client Name"] == selected_client]
             
@@ -973,6 +1532,7 @@ with main_tab2:
                             
                             display_df[period] = client_data.apply(format_cell, axis=1).values
             
+            display_df.sort_values(by="Scheme Name", inplace=True, ignore_index=True)
             display_df.insert(0, "Sr.", range(1, len(display_df) + 1))
             
             if "AUM" in display_df.columns:
@@ -983,7 +1543,7 @@ with main_tab2:
                 elif len(display_df.columns) > 0:
                     total_row[display_df.columns[0]] = "TOTAL"
                 total_row["AUM"] = total_aum
-                total_row["Sr."] = None
+                total_row["Sr."] = ""
                 
                 display_df = pd.concat([display_df, pd.DataFrame([total_row])], ignore_index=True)
                 
@@ -1029,6 +1589,20 @@ with main_tab2:
                 display_df = display_df[cols]
 
             styled_display_df = display_df.style.apply(highlight_and_color, axis=1)
+            
+            # Render export buttons (use columns defined earlier)
+            with btn_excel_col:
+                st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+                client_export_excel(display_df, selected_client, "tab2")
+                st.markdown("</div>", unsafe_allow_html=True)
+            with btn_pdf_col:
+                st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+                client_export_pdf(display_df, selected_client, "tab2")
+                st.markdown("</div>", unsafe_allow_html=True)
+            with btn_print_col:
+                st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+                client_print_button(display_df, selected_client, "tab2")
+                st.markdown("</div>", unsafe_allow_html=True)
             
             client_tab1, client_tab2 = st.tabs(["Client Details", "Quartile Report"])
             
@@ -1124,10 +1698,373 @@ with main_tab2:
         st.warning("Client data not available.")
 
 with main_tab3:
-    st.markdown("### Scheme Wise Portfolio")
-    colA, colB = st.columns([1, 4])
-    with colA:
-        if st.button("Refresh Scheme Wise Data"):
+    # --- Scheme-wise export helper functions ---
+    def scheme_export_excel(display_data, filter_text, button_key):
+        today = datetime.date.today().strftime("%d-%b-%Y")
+        output = BytesIO()
+        
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Clean data for export
+            export_df = display_data.copy()
+            if "AUM" in export_df.columns:
+                export_df["AUM"] = export_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+            if "Sr." in export_df.columns:
+                export_df["Sr."] = export_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+            export_df = export_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+            export_df.to_excel(writer, index=False, startrow=3, sheet_name='Scheme Report')
+            ws = writer.sheets['Scheme Report']
+            
+            # Right align AUM column dynamically
+            if "AUM" in export_df.columns:
+                aum_col_idx = list(export_df.columns).index("AUM") + 1
+                from openpyxl.styles import Alignment
+                for r in range(4, ws.max_row + 1):
+                    ws.cell(row=r, column=aum_col_idx).alignment = Alignment(horizontal='right')
+            
+            # Insert logo
+            logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+            if os.path.exists(logo_path):
+                from openpyxl.drawing.image import Image as XlImage
+                img = XlImage(logo_path)
+                img.width = 80
+                img.height = 35
+                ws.add_image(img, 'A1')
+            
+            ws.cell(row=1, column=3, value="Quartile Fund Report (Scheme Wise)")
+            ws.cell(row=1, column=5, value=f"Date: {today}")
+            ws.cell(row=1, column=7, value=f"Filters: {filter_text}")
+        
+        st.download_button(
+            "📊",
+            data=output.getvalue(),
+            file_name=f"SchemeWise_{today}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Download Excel",
+            key=f"scheme_excel_{button_key}"
+        )
+    
+    def scheme_export_pdf(display_data, filter_text, button_key):
+        today = datetime.date.today().strftime("%d-%b-%Y")
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=pagesizes.landscape(pagesizes.A4),
+            topMargin=75, bottomMargin=20, leftMargin=30, rightMargin=30
+        )
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Header row: Logo | Company Name | Date | Filters — all on one line
+        logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+        header_cells = []
+        if os.path.exists(logo_path):
+            from reportlab.platypus import Image as RLImage
+            try:
+                logo = RLImage(logo_path, width=80, height=35)
+                header_cells.append(logo)
+            except Exception:
+                header_cells.append(Paragraph("", styles["Normal"]))
+        else:
+            header_cells.append(Paragraph("", styles["Normal"]))
+        
+        header_cells.append(Paragraph("<b>Quartile Fund Report (Scheme Wise)</b>", styles["Heading2"]))
+        header_cells.append(Paragraph(f"<b>Date:</b> {today}", styles["Normal"]))
+        
+        from reportlab.lib.styles import ParagraphStyle
+        filter_style = ParagraphStyle(
+            'FilterStyle',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=10
+        )
+        header_cells.append(Paragraph(f"<b>Active Filters:</b><br/>{filter_text}", filter_style))
+        
+        page_width = pagesizes.landscape(pagesizes.A4)[0] - 60
+        header_table = Table([header_cells], colWidths=[90, page_width * 0.35, page_width * 0.15, page_width * 0.4])
+        header_table.setStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ])
+        
+        def draw_header(canvas, document):
+            canvas.saveState()
+            header_table.wrapOn(canvas, page_width, 40)
+            header_table.drawOn(canvas, 30, 545)
+            canvas.restoreState()
+        
+        if not display_data.empty:
+            from reportlab.lib.units import inch
+            
+            # Prepare data: format AUM with commas, replace None/nan with blank
+            pdf_df = display_data.copy()
+            if "AUM" in pdf_df.columns:
+                pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+            if "Sr." in pdf_df.columns:
+                pdf_df["Sr."] = pdf_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+            pdf_df = pdf_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+            
+            # Define paragraph styles for auto-wrapping inside table cells
+            cell_style_left = ParagraphStyle(
+                'CellClassLeft',
+                parent=styles['Normal'],
+                fontSize=6,
+                leading=7.5,
+                alignment=0  # Left aligned
+            )
+            cell_style_center = ParagraphStyle(
+                'CellClassCenter',
+                parent=styles['Normal'],
+                fontSize=6,
+                leading=7.5,
+                alignment=1  # Center aligned
+            )
+            cell_style_right = ParagraphStyle(
+                'CellClassRight',
+                parent=styles['Normal'],
+                fontSize=6,
+                leading=7.5,
+                alignment=2  # Right aligned
+            )
+            header_style_center = ParagraphStyle(
+                'HeaderClassCenter',
+                parent=styles['Normal'],
+                fontSize=6.5,
+                leading=8.5,
+                textColor=colors.white,
+                alignment=1  # Center aligned
+            )
+            header_style_right = ParagraphStyle(
+                'HeaderClassRight',
+                parent=styles['Normal'],
+                fontSize=6.5,
+                leading=8.5,
+                textColor=colors.white,
+                alignment=2  # Right aligned
+            )
+            
+            # Build table data with auto-wrapping Paragraphs for all columns
+            headers = []
+            for col in pdf_df.columns:
+                style = header_style_right if col == "AUM" else header_style_center
+                headers.append(Paragraph(f"<b>{col}</b>", style))
+            table_data = [headers]
+            
+            text_cols = {"Category Name", "Sector", "Scheme Name"}
+            for _, row in pdf_df.iterrows():
+                row_cells = []
+                for col in pdf_df.columns:
+                    val = row[col]
+                    if col in text_cols:
+                        style = cell_style_left
+                    elif col == "AUM":
+                        style = cell_style_right
+                    else:
+                        style = cell_style_center
+                    row_cells.append(Paragraph(val, style))
+                table_data.append(row_cells)
+            
+            # Smart column widths: explicit sizes per column type
+            n_cols = len(pdf_df.columns)
+            avail_width = pagesizes.landscape(pagesizes.A4)[0] - 72
+            col_names = list(pdf_df.columns)
+            
+            # Define explicit widths for known columns
+            narrow_cols = {"Sr.": 25, "XIRR": 42}
+            period_cols = {"1 Month": 42, "3 Months": 42, "6 Months": 42, "YTD": 42, "1 Year": 42, "2 Years": 42}
+            medium_cols = {"Category Name": 45, "Sector": 147, "AUM": 55}
+            
+            col_widths = []
+            fixed_total = 0
+            has_scheme = "Scheme Name" in col_names
+            
+            for c in col_names:
+                if c == "Scheme Name":
+                    col_widths.append(0)  # placeholder, calculated below
+                elif c in narrow_cols:
+                    col_widths.append(narrow_cols[c])
+                    fixed_total += narrow_cols[c]
+                elif c in period_cols:
+                    col_widths.append(period_cols[c])
+                    fixed_total += period_cols[c]
+                elif c in medium_cols:
+                    col_widths.append(medium_cols[c])
+                    fixed_total += medium_cols[c]
+                else:
+                    col_widths.append(50)
+                    fixed_total += 50
+            
+            # Give Scheme Name all remaining width
+            if has_scheme:
+                scheme_idx = col_names.index("Scheme Name")
+                col_widths[scheme_idx] = max(avail_width - fixed_total, 120)
+            
+            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            table.setStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ])
+            elements.append(table)
+        
+        doc.build(elements, onFirstPage=draw_header, onLaterPages=draw_header)
+        
+        st.download_button(
+            "📕",
+            data=buffer.getvalue(),
+            file_name=f"SchemeWise_{today}.pdf",
+            mime="application/pdf",
+            help="Download PDF",
+            key=f"scheme_pdf_{button_key}"
+        )
+    
+    def scheme_print_button(display_data, filter_text, button_key):
+        today = datetime.date.today().strftime("%d-%b-%Y")
+        
+        logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
+        logo_html = ""
+        if os.path.exists(logo_path):
+            import base64 as b64mod
+            with open(logo_path, "rb") as f:
+                logo_b64 = b64mod.b64encode(f.read()).decode("utf-8")
+            logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:50px;margin-bottom:10px;">'
+        
+        # Clean data for print
+        print_df = display_data.copy()
+        if "AUM" in print_df.columns:
+            print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+        if "Sr." in print_df.columns:
+            print_df["Sr."] = print_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+        print_df = print_df.fillna("").astype(str).replace("nan", "").replace("None", "")
+        
+        table_html = print_df.to_html(index=False) if not print_df.empty else ""
+        
+        html = f"""
+        <html><head><title>Scheme Summary Report</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
+            
+            /* Repeating Page Header */
+            .header {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 50px;
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                border-bottom: 2px solid #1f77b4;
+                background-color: white;
+                padding: 5px 20px;
+                z-index: 1000;
+            }}
+            .header h2 {{ margin: 0; color: #1f77b4; white-space: nowrap; }}
+            .header span {{ color: #555; white-space: nowrap; font-size: 14px; }}
+            .header-space {{
+                height: 65px;
+            }}
+            
+            /* Outer layout table to handle printing page margins & repeating spacing */
+            .layout-table {{
+                width: 100%;
+                border-collapse: collapse;
+                border: none;
+            }}
+            .layout-cell {{
+                border: none;
+                padding: 0 20px;
+            }}
+            
+            /* Data Table style */
+            table.dataframe {{
+                border-collapse: collapse;
+                width: 100%;
+                font-size: 12px;
+                margin-top: 10px;
+            }}
+            table.dataframe th, table.dataframe td {{
+                border: 1px solid #ddd;
+                padding: 6px 8px;
+                text-align: left;
+            }}
+            table.dataframe th {{
+                background-color: #1f77b4;
+                color: white;
+            }}
+            table.dataframe tr:nth-child(even) {{
+                background-color: #f8f9fa;
+            }}
+            table.dataframe th:nth-child(5), table.dataframe td:nth-child(5) {{
+                text-align: right !important;
+            }}
+            
+            thead {{
+                display: table-header-group;
+            }}
+            tbody {{
+                display: table-row-group;
+            }}
+            tr {{
+                page-break-inside: avoid;
+            }}
+            @page {{
+                margin: 10mm;
+                size: landscape;
+            }}
+        </style>
+        </head><body>
+        
+        <div class="header">
+            {logo_html}
+            <h2>Quartile Fund Report (Scheme Wise)</h2>
+            <span><b>Date:</b> {today}</span>
+            <span><b>Filters:</b> {filter_text}</span>
+        </div>
+        
+        <table class="layout-table">
+            <thead>
+                <tr>
+                    <td class="layout-cell"><div class="header-space">&nbsp;</div></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="layout-cell">
+                        {table_html}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <script>
+            window.onload = function() {{
+                window.print();
+            }}
+        </script>
+        </body></html>
+        """
+        
+        b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
+        href = f"data:text/html;base64,{b64_data}"
+        
+        st.markdown(
+            f"""
+            <a href="{href}" target="_blank" 
+            style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
+            title="Print">
+            🖨️
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    col_refresh, col_cat, col_sec, col_sch, btn_pdf_col, btn_excel_col, btn_print_col = st.columns([0.3, 1.8, 1.8, 1.8, 0.3, 0.3, 0.3])
+    with col_refresh:
+        st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+        if st.button("🔄", key="refresh_scheme_wise", help="Refresh Scheme Wise Data"):
             import autodownload
             with st.spinner("Downloading Scheme Wise Data..."):
                 try:
@@ -1136,20 +2073,20 @@ with main_tab3:
                     st.success("Scheme Wise Data Downloaded!")
                 except Exception as e:
                     st.error(f"Failed: {e}")
+        st.markdown("</div>", unsafe_allow_html=True)
                     
     scheme_df = load_scheme_wise()
     if not scheme_df.empty:
-        st.markdown("##### Filter Options")
-        f_col1, f_col2, f_col3 = st.columns(3)
+        #st.markdown("##### Filter Options")
         categories = scheme_df["Category Name"].dropna().unique().tolist()
         sectors = scheme_df["Sector"].dropna().unique().tolist()
         schemes = scheme_df["Scheme Name"].dropna().unique().tolist()
         
-        with f_col1:
+        with col_cat:
             sel_cat = st.multiselect("Category Name", options=categories)
-        with f_col2:
+        with col_sec:
             sel_sec = st.multiselect("Sector", options=sectors)
-        with f_col3:
+        with col_sch:
             sel_sch = st.multiselect("Scheme Name", options=schemes)
             
         filtered_raw = scheme_df.copy()
@@ -1198,7 +2135,8 @@ with main_tab3:
         else:
             merged_scheme = grouped_scheme
             
-        # Add Sr. column
+        # Sort and add Sr. column
+        merged_scheme.sort_values(by=["Category Name", "Sector", "Scheme Name"], inplace=True, ignore_index=True)
         merged_scheme.insert(0, "Sr.", range(1, len(merged_scheme) + 1))
         
         # Apply quartile coloring
@@ -1215,14 +2153,38 @@ with main_tab3:
             styled_df = merged_scheme.style.map(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
         except AttributeError:
             styled_df = merged_scheme.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
+        # Generate filter text for the report
+        active_filters = []
+        if sel_cat: active_filters.append(f"Category: {', '.join(sel_cat)}")
+        if sel_sec: active_filters.append(f"Sector: {', '.join(sel_sec)}")
+        if sel_sch: active_filters.append(f"Scheme: {', '.join(sel_sch)}")
+        filter_text = " | ".join(active_filters) if active_filters else "All Funds"
+        
+        # Render export buttons
+        with btn_excel_col:
+            st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+            scheme_export_excel(merged_scheme, filter_text, "tab3")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with btn_pdf_col:
+            st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+            scheme_export_pdf(merged_scheme, filter_text, "tab3")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with btn_print_col:
+            st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
+            scheme_print_button(merged_scheme, filter_text, "tab3")
+            st.markdown("</div>", unsafe_allow_html=True)
             
-        st.markdown("##### Schemes Summary")
+        #st.markdown("##### Schemes Summary")
         event = st.dataframe(
             styled_df, 
             use_container_width=True, 
             hide_index=True,
             on_select="rerun",
-            selection_mode="single-row"
+            selection_mode="single-row",
+            column_config={
+                "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
+                "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+            }
         )
         
         selected_rows = event.selection.rows
@@ -1235,11 +2197,58 @@ with main_tab3:
             # Filter original scheme_df to find all clients holding this scheme
             detail_df = scheme_df[scheme_df["Scheme Name"] == selected_scheme_name].copy()
             
-            cols_to_show = ["Client Name", "Family Head Name", "AUM", "Folio", "ARN No"]
-            if "XIRR" in detail_df.columns:
-                cols_to_show.append("XIRR")
-                
-            detail_display = detail_df[[c for c in cols_to_show if c in detail_df.columns]].copy()
+            # Fetch XIRR from ScriptWise Client Report
+            detail_display = detail_df.copy()
+            detail_display.sort_values(by="Client Name", inplace=True, ignore_index=True)
+            
+            # Download scheme-wise client report via autodownload
+            import autodownload
+            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            scriptwise_file = os.path.join("Data", f"ScriptWise_ClientDetails_{today_str}.xls")
+            
+            # Download the report for the selected scheme
+            with st.spinner(f"Downloading client details for {selected_scheme_name}..."):
+                try:
+                    result_path = autodownload.ScriptWiseClient(selected_scheme_name)
+                except Exception as e:
+                    st.error(f"Failed to download ScriptWise data: {e}")
+                    result_path = None
+            
+            # Read the downloaded file and merge ClientXirr
+            if result_path and os.path.exists(result_path):
+                try:
+                    try:
+                        sw_df = pd.read_excel(result_path, engine="openpyxl")
+                    except Exception:
+                        sw_df = pd.read_excel(result_path, engine="xlrd")
+                    
+                    if "ClientXirr" in sw_df.columns:
+                        # Normalize client name for matching
+                        # ScriptWise file uses 'clientname' column (lowercase, no space)
+                        sw_client_col = "clientname" if "clientname" in sw_df.columns else "Client Name"
+                        sw_df["_sw_client"] = sw_df[sw_client_col].astype(str).str.strip().str.lower()
+                        detail_display["_sw_client"] = detail_display["Client Name"].astype(str).str.strip().str.lower()
+                        
+                        # Merge XIRR from the ScriptWise report
+                        sw_xirr = sw_df[["_sw_client", "ClientXirr"]].drop_duplicates(subset=["_sw_client"])
+                        detail_display = detail_display.merge(sw_xirr, on="_sw_client", how="left")
+                        detail_display.rename(columns={"ClientXirr": "XIRR"}, inplace=True)
+                        detail_display.drop(columns=["_sw_client"], inplace=True)
+                    else:
+                        st.warning("ClientXirr column not found in downloaded file.")
+                        detail_display["XIRR"] = pd.NA
+                except Exception as e:
+                    st.warning(f"Could not read ScriptWise file: {e}")
+                    detail_display["XIRR"] = pd.NA
+            else:
+                st.warning("ScriptWise client data could not be downloaded.")
+                detail_display["XIRR"] = pd.NA
+            
+            # Enforce column order: Client Name, Family Head Name, Folio, ARN No, XIRR, AUM
+            base_cols = ["Client Name", "Family Head Name", "Folio", "ARN No", "XIRR", "AUM"]
+            cols_to_show = [c for c in base_cols if c in detail_display.columns]
+            
+            detail_display = detail_display[cols_to_show].copy()
             
             # Merge with quartile data for this scheme
             if not master_q_df.empty:
@@ -1276,7 +2285,16 @@ with main_tab3:
             except AttributeError:
                 detail_styled = detail_merged.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in detail_merged.columns])
                 
-            st.dataframe(detail_styled, use_container_width=True, hide_index=True)
+            st.dataframe(
+                detail_styled, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
+                    "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f"),
+                    "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+                }
+            )
             
     else:
         st.info("No Scheme Wise Data found. Please click 'Refresh Scheme Wise Data' above to download.")
