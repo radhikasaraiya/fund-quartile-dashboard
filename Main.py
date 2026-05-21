@@ -531,18 +531,67 @@ with main_tab1:
         </body></html>
         """
         
+        import streamlit.components.v1 as components
         b64 = base64.b64encode(html.encode('utf-8')).decode('utf-8')
-        href = f"data:text/html;base64,{b64}"
         
-        st.markdown(
+        components.html(
             f"""
-            <a href="{href}" target="_blank" 
-            style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
-            title="Print">
-            🖨️
-            </a>
+            <html>
+            <head>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                    background-color: transparent;
+                }}
+                .print-btn {{
+                    padding: 5px 10px;
+                    border-radius: 8px;
+                    border: 1px solid #90caf9;
+                    background-color: #e3f2fd;
+                    color: #1e88e5;
+                    cursor: pointer;
+                    text-decoration: none;
+                    display: inline-block;
+                    height: 38px;
+                    width: 38px;
+                    box-sizing: border-box;
+                    text-align: center;
+                    font-size: 16px;
+                    line-height: 26px;
+                    user-select: none;
+                    transition: background-color 0.2s, border-color 0.2s;
+                }}
+                .print-btn:hover {{
+                    background-color: #d0e8ff;
+                    border-color: #42a5f5;
+                }}
+            </style>
+            </head>
+            <body>
+                <a href="javascript:void(0);" onclick="printReport()" class="print-btn" title="Print">🖨️</a>
+                <script>
+                    function printReport() {{
+                        try {{
+                            var printWindow = window.open('', '_blank');
+                            if (!printWindow) {{
+                                alert("Popup blocked! Please allow popups for this site to print.");
+                                return;
+                            }}
+                            var htmlContent = atob('{b64}');
+                            printWindow.document.write(htmlContent);
+                            printWindow.document.close();
+                        }} catch (e) {{
+                            alert("Error preparing document for printing: " + e.message);
+                        }}
+                    }}
+                </script>
+            </body>
+            </html>
             """,
-            unsafe_allow_html=True
+            height=45,
+            width=50
         )
     
     # -------------------------------------------------------
@@ -1413,18 +1462,67 @@ with main_tab2:
             </body></html>
             """
             
+            import streamlit.components.v1 as components
             b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
-            href = f"data:text/html;base64,{b64_data}"
             
-            st.markdown(
+            components.html(
                 f"""
-                <a href="{href}" target="_blank" 
-                style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
-                title="Print">
-                🖨️
-                </a>
+                <html>
+                <head>
+                <style>
+                    body {{
+                        margin: 0;
+                        padding: 0;
+                        overflow: hidden;
+                        background-color: transparent;
+                    }}
+                    .print-btn {{
+                        padding: 5px 10px;
+                        border-radius: 8px;
+                        border: 1px solid #90caf9;
+                        background-color: #e3f2fd;
+                        color: #1e88e5;
+                        cursor: pointer;
+                        text-decoration: none;
+                        display: inline-block;
+                        height: 38px;
+                        width: 38px;
+                        box-sizing: border-box;
+                        text-align: center;
+                        font-size: 16px;
+                        line-height: 26px;
+                        user-select: none;
+                        transition: background-color 0.2s, border-color 0.2s;
+                    }}
+                    .print-btn:hover {{
+                        background-color: #d0e8ff;
+                        border-color: #42a5f5;
+                    }}
+                </style>
+                </head>
+                <body>
+                    <a href="javascript:void(0);" onclick="printReport()" class="print-btn" title="Print">🖨️</a>
+                    <script>
+                        function printReport() {{
+                            try {{
+                                var printWindow = window.open('', '_blank');
+                                if (!printWindow) {{
+                                    alert("Popup blocked! Please allow popups for this site to print.");
+                                    return;
+                                }}
+                                var htmlContent = atob('{b64_data}');
+                                printWindow.document.write(htmlContent);
+                                printWindow.document.close();
+                            }} catch (e) {{
+                                alert("Error preparing document for printing: " + e.message);
+                            }}
+                        }}
+                    </script>
+                </body>
+                </html>
                 """,
-                unsafe_allow_html=True
+                height=45,
+                width=50
             )
         
         # --- Layout: Selectbox + Export buttons ---
@@ -2047,18 +2145,67 @@ with main_tab3:
         </body></html>
         """
         
+        import streamlit.components.v1 as components
         b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
-        href = f"data:text/html;base64,{b64_data}"
         
-        st.markdown(
+        components.html(
             f"""
-            <a href="{href}" target="_blank" 
-            style="padding:5px 10px;border-radius:8px;border:1px solid #90caf9;background-color:#e3f2fd;color:#1e88e5;cursor:pointer;text-decoration:none;display:inline-block;height:38px;line-height:26px;text-align:center;font-size:16px;"
-            title="Print">
-            🖨️
-            </a>
+            <html>
+            <head>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                    background-color: transparent;
+                }}
+                .print-btn {{
+                    padding: 5px 10px;
+                    border-radius: 8px;
+                    border: 1px solid #90caf9;
+                    background-color: #e3f2fd;
+                    color: #1e88e5;
+                    cursor: pointer;
+                    text-decoration: none;
+                    display: inline-block;
+                    height: 38px;
+                    width: 38px;
+                    box-sizing: border-box;
+                    text-align: center;
+                    font-size: 16px;
+                    line-height: 26px;
+                    user-select: none;
+                    transition: background-color 0.2s, border-color 0.2s;
+                }}
+                .print-btn:hover {{
+                    background-color: #d0e8ff;
+                    border-color: #42a5f5;
+                }}
+            </style>
+            </head>
+            <body>
+                <a href="javascript:void(0);" onclick="printReport()" class="print-btn" title="Print">🖨️</a>
+                <script>
+                    function printReport() {{
+                        try {{
+                            var printWindow = window.open('', '_blank');
+                            if (!printWindow) {{
+                                alert("Popup blocked! Please allow popups for this site to print.");
+                                return;
+                            }}
+                            var htmlContent = atob('{b64_data}');
+                            printWindow.document.write(htmlContent);
+                            printWindow.document.close();
+                        }} catch (e) {{
+                            alert("Error preparing document for printing: " + e.message);
+                        }}
+                    }}
+                </script>
+            </body>
+            </html>
             """,
-            unsafe_allow_html=True
+            height=45,
+            width=50
         )
     
     col_refresh, col_cat, col_sec, col_sch, btn_pdf_col, btn_excel_col, btn_print_col = st.columns([0.3, 1.8, 1.8, 1.8, 0.3, 0.3, 0.3])
