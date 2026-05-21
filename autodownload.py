@@ -39,7 +39,7 @@ def _ensure_playwright_browsers():
 def run():
     _ensure_playwright_browsers()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -104,7 +104,7 @@ def run():
 def MyFundList():
     _ensure_playwright_browsers()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -162,7 +162,7 @@ def ScriptWiseClient(scriptname):
     """Download scheme-wise client details Excel for a given script/scheme name."""
     _ensure_playwright_browsers()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
@@ -245,7 +245,7 @@ def ScriptWiseClient(scriptname):
 def download_client_portfolio(client_name):
     _ensure_playwright_browsers()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
