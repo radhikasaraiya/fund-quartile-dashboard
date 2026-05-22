@@ -10,11 +10,29 @@ from reportlab.lib import pagesizes
 import requests
 import os
 
+def format_indian_currency(n):
+    import pandas as pd
+    from babel.numbers import format_currency
+    try:
+        n = float(n)
+    except:
+        return str(n) if n else ""
+    if pd.isna(n):
+        return ""
+    
+    formatted = format_currency(n, "INR", locale="en_IN")
+    
+    if formatted.startswith("₹") and not formatted.startswith("₹ "):
+        formatted = "₹ " + formatted[1:]
+    elif formatted.startswith("-₹") and not formatted.startswith("-₹ "):
+        formatted = "-₹ " + formatted[2:]
+        
+    return formatted
 
 
 st.set_page_config(layout="wide")
 
-@st.cache_data
+@st.cache_data(show_spinner="Fetching Data...")
 def load_investors():
     import os
     try:
@@ -31,7 +49,7 @@ def load_investors():
     except Exception as e:
         return pd.DataFrame()
 
-@st.cache_data
+@st.cache_data(show_spinner="Fetching Data...")
 def load_scheme_wise():
     import os
     import glob
@@ -48,7 +66,7 @@ def load_scheme_wise():
         return pd.DataFrame()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Fetching Data...")
 def load_all_scheme_quartiles(data_file):
     if not data_file or not os.path.exists(data_file): return pd.DataFrame()
     try:
@@ -428,7 +446,7 @@ with main_tab1:
                 tables_html += "<br>"
                 
         html = f"""
-        <html><head><title>{filename}</title>
+        <html><head><meta charset="utf-8"><title>{filename}</title>
         <style>
             body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
             
@@ -532,12 +550,13 @@ with main_tab1:
         """
         
         import streamlit.components.v1 as components
+        html = html.replace('₹', '&#8377;')
         b64 = base64.b64encode(html.encode('utf-8')).decode('utf-8')
         
         components.html(
             f"""
             <html>
-            <head>
+            <head><meta charset="utf-8">
             <style>
                 body {{
                     margin: 0;
@@ -672,7 +691,7 @@ with main_tab1:
     
     col1, col2, col3, card1, card2, card3 = st.columns([1.2, 1.2, 1.2, 0.5, 0.5, 0.5])
     
-    @st.cache_data(show_spinner=False)
+    @st.cache_data(show_spinner="Fetching Data...")
     def get_fund_data():
         url = "https://research-ftp.bajajcapitalinsurance.com/Fund-Barometer.xls"
         filename = os.path.join("Data", "Fund-Barometer.xls")
@@ -837,14 +856,15 @@ with main_tab1:
                 # LOAD DATA
                 # -------------------------------------------------------
     
-                raw = pd.read_excel(data_file, sheet_name=actual_sheet_name, header=None, engine=excel_file.engine)
-                header_row = raw[
-                    raw.astype(str)
-                    .apply(lambda x: x.str.contains("^Scheme Name$", case=False, na=False))
-                    .any(axis=1)
-                ].index[0]
-    
-                df = pd.read_excel(data_file, sheet_name=actual_sheet_name, header=header_row, engine=excel_file.engine)
+                with st.spinner("Processing..."):
+                    raw = pd.read_excel(data_file, sheet_name=actual_sheet_name, header=None, engine=excel_file.engine)
+                    header_row = raw[
+                        raw.astype(str)
+                        .apply(lambda x: x.str.contains("^Scheme Name$", case=False, na=False))
+                        .any(axis=1)
+                    ].index[0]
+        
+                    df = pd.read_excel(data_file, sheet_name=actual_sheet_name, header=header_row, engine=excel_file.engine)
             df.columns = df.columns.astype(str).str.strip()
     
             df = df[df["Scheme Name"].notna()]
@@ -1131,6 +1151,8 @@ with main_tab1:
                                 return [''] * len(row)
     
                             styled_display_df = display_df.style.apply(highlight_total, axis=1)
+                            if "AUM" in display_df.columns:
+                                styled_display_df = styled_display_df.format({"AUM": format_indian_currency}, na_rep="").set_properties(subset=["AUM"], **{"text-align": "right"})
                             st.dataframe(
                                 styled_display_df, 
                                 use_container_width=True, 
@@ -1138,8 +1160,7 @@ with main_tab1:
                                 height=600,
                                 column_config={
                                     "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
-                                    "Client Name": st.column_config.TextColumn("Client Name", width="medium"),
-                                    "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+                                    "Client Name": st.column_config.TextColumn("Client Name", width="medium")
                                 }
                             )
                         else:
@@ -1163,7 +1184,7 @@ with main_tab2:
                 # Clean data for export
                 export_df = display_data.copy()
                 if "AUM" in export_df.columns:
-                    export_df["AUM"] = export_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+                    export_df["AUM"] = export_df["AUM"].apply(lambda x: format_indian_currency(x) if pd.notna(x) and x != "" else "")
                 if "Sr." in export_df.columns:
                     export_df["Sr."] = export_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
                 export_df = export_df.fillna("").astype(str).replace("nan", "").replace("None", "")
@@ -1238,7 +1259,7 @@ with main_tab2:
                 # Prepare data: format AUM with commas, replace None/nan with blank
                 pdf_df = display_data.copy()
                 if "AUM" in pdf_df.columns:
-                    pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+                    pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: format_indian_currency(x).replace('₹', 'Rs.') if pd.notna(x) and x != "" else "")
                 if "Sr." in pdf_df.columns:
                     pdf_df["Sr."] = pdf_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
                 pdf_df = pdf_df.fillna("").astype(str).replace("nan", "").replace("None", "")
@@ -1351,7 +1372,7 @@ with main_tab2:
             # Clean data for print: format AUM, remove None
             print_df = display_data.copy()
             if "AUM" in print_df.columns:
-                print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+                print_df["AUM"] = print_df["AUM"].apply(lambda x: format_indian_currency(x) if pd.notna(x) and x != "" else "")
             if "Sr." in print_df.columns:
                 print_df["Sr."] = print_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
             print_df = print_df.fillna("").astype(str).replace("nan", "").replace("None", "")
@@ -1359,7 +1380,7 @@ with main_tab2:
             table_html = print_df.to_html(index=False) if not print_df.empty else ""
             
             html = f"""
-            <html><head><title>Client Report - {client_name}</title>
+            <html><head><meta charset="utf-8"><title>Client Report - {client_name}</title>
             <style>
                 body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
                 
@@ -1463,12 +1484,13 @@ with main_tab2:
             """
             
             import streamlit.components.v1 as components
+            html = html.replace('₹', '&#8377;')
             b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
             
             components.html(
                 f"""
                 <html>
-                <head>
+                <head><meta charset="utf-8">
                 <style>
                     body {{
                         margin: 0;
@@ -1687,6 +1709,8 @@ with main_tab2:
                 display_df = display_df[cols]
 
             styled_display_df = display_df.style.apply(highlight_and_color, axis=1)
+            if "AUM" in display_df.columns:
+                styled_display_df = styled_display_df.format({"AUM": format_indian_currency}, na_rep="").set_properties(subset=["AUM"], **{"text-align": "right"})
             
             # Render export buttons (use columns defined earlier)
             with btn_excel_col:
@@ -1713,8 +1737,7 @@ with main_tab2:
                     column_config={
                         "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
                         "Scheme Name": st.column_config.TextColumn("Scheme Name", width="medium"),
-                        "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f"),
-                        "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+                        "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f")
                     }
                 )
             
@@ -1797,17 +1820,48 @@ with main_tab2:
 
 with main_tab3:
     # --- Scheme-wise export helper functions ---
-    def scheme_export_excel(display_data, filter_text, button_key):
+    def scheme_export_excel(display_data, scheme_df, filter_text, button_key):
         today = datetime.date.today().strftime("%d-%b-%Y")
         output = BytesIO()
         
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Clean data for export
-            export_df = display_data.copy()
-            if "AUM" in export_df.columns:
-                export_df["AUM"] = export_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
-            if "Sr." in export_df.columns:
-                export_df["Sr."] = export_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
+            export_list = []
+            for _, row in display_data.iterrows():
+                row_dict = row.to_dict()
+                if "AUM" in row_dict and pd.notna(row_dict["AUM"]) and row_dict["AUM"] != "":
+                    try:
+                        row_dict["AUM"] = format_indian_currency(row_dict["AUM"])
+                    except:
+                        pass
+                if "Sr." in row_dict and pd.notna(row_dict["Sr."]) and row_dict["Sr."] != "":
+                    try:
+                        row_dict["Sr."] = str(int(float(row_dict["Sr."])))
+                    except:
+                        pass
+                export_list.append(row_dict)
+                
+                scheme_name = row.get("Scheme Name", "")
+                if scheme_name:
+                    clients = scheme_df[scheme_df["Scheme Name"] == scheme_name]
+                    if not clients.empty:
+                        clients = clients.sort_values(by="Client Name")
+                        client_sr = 1
+                        for _, crow in clients.iterrows():
+                            c_dict = {col: "" for col in display_data.columns}
+                            cname = str(crow.get("Client Name", ""))
+                            cfolio = str(crow.get("Folio", ""))
+                            caum = crow.get("AUM", "")
+                            
+                            c_dict["Scheme Name"] = f"    {client_sr}. {cname} (Folio: {cfolio})"
+                            if "AUM" in display_data.columns and pd.notna(caum) and caum != "":
+                                try:
+                                    c_dict["AUM"] = format_indian_currency(caum)
+                                except:
+                                    pass
+                            export_list.append(c_dict)
+                            client_sr += 1
+            
+            export_df = pd.DataFrame(export_list)
             export_df = export_df.fillna("").astype(str).replace("nan", "").replace("None", "")
             export_df.to_excel(writer, index=False, startrow=3, sheet_name='Scheme Report')
             ws = writer.sheets['Scheme Report']
@@ -1841,7 +1895,7 @@ with main_tab3:
             key=f"scheme_excel_{button_key}"
         )
     
-    def scheme_export_pdf(display_data, filter_text, button_key):
+    def scheme_export_pdf(display_data, scheme_df, filter_text, button_key):
         today = datetime.date.today().strftime("%d-%b-%Y")
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -1893,65 +1947,43 @@ with main_tab3:
         if not display_data.empty:
             from reportlab.lib.units import inch
             
-            # Prepare data: format AUM with commas, replace None/nan with blank
-            pdf_df = display_data.copy()
-            if "AUM" in pdf_df.columns:
-                pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
-            if "Sr." in pdf_df.columns:
-                pdf_df["Sr."] = pdf_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
-            pdf_df = pdf_df.fillna("").astype(str).replace("nan", "").replace("None", "")
-            
             # Define paragraph styles for auto-wrapping inside table cells
             cell_style_left = ParagraphStyle(
-                'CellClassLeft',
-                parent=styles['Normal'],
-                fontSize=6,
-                leading=7.5,
-                alignment=0  # Left aligned
-            )
+                'CellClassLeft', parent=styles['Normal'], fontSize=6, leading=7.5, alignment=0)
             cell_style_center = ParagraphStyle(
-                'CellClassCenter',
-                parent=styles['Normal'],
-                fontSize=6,
-                leading=7.5,
-                alignment=1  # Center aligned
-            )
+                'CellClassCenter', parent=styles['Normal'], fontSize=6, leading=7.5, alignment=1)
             cell_style_right = ParagraphStyle(
-                'CellClassRight',
-                parent=styles['Normal'],
-                fontSize=6,
-                leading=7.5,
-                alignment=2  # Right aligned
-            )
+                'CellClassRight', parent=styles['Normal'], fontSize=6, leading=7.5, alignment=2)
             header_style_center = ParagraphStyle(
-                'HeaderClassCenter',
-                parent=styles['Normal'],
-                fontSize=6.5,
-                leading=8.5,
-                textColor=colors.white,
-                alignment=1  # Center aligned
-            )
+                'HeaderClassCenter', parent=styles['Normal'], fontSize=6.5, leading=8.5, textColor=colors.white, alignment=1)
             header_style_right = ParagraphStyle(
-                'HeaderClassRight',
-                parent=styles['Normal'],
-                fontSize=6.5,
-                leading=8.5,
-                textColor=colors.white,
-                alignment=2  # Right aligned
-            )
+                'HeaderClassRight', parent=styles['Normal'], fontSize=6.5, leading=8.5, textColor=colors.white, alignment=2)
             
             # Build table data with auto-wrapping Paragraphs for all columns
             headers = []
-            for col in pdf_df.columns:
+            for col in display_data.columns:
                 style = header_style_right if col == "AUM" else header_style_center
                 headers.append(Paragraph(f"<b>{col}</b>", style))
             table_data = [headers]
             
             text_cols = {"Category Name", "Sector", "Scheme Name"}
-            for _, row in pdf_df.iterrows():
+            for _, row in display_data.iterrows():
                 row_cells = []
-                for col in pdf_df.columns:
+                for col in display_data.columns:
                     val = row[col]
+                    if col == "AUM" and pd.notna(val) and val != "":
+                        try:
+                            val = format_indian_currency(val).replace('₹', 'Rs.')
+                        except:
+                            val = str(val)
+                    elif col == "Sr." and pd.notna(val) and val != "":
+                        try:
+                            val = str(int(float(val)))
+                        except:
+                            val = str(val)
+                    else:
+                        val = str(val) if pd.notna(val) else ""
+                        
                     if col in text_cols:
                         style = cell_style_left
                     elif col == "AUM":
@@ -1960,11 +1992,39 @@ with main_tab3:
                         style = cell_style_center
                     row_cells.append(Paragraph(val, style))
                 table_data.append(row_cells)
+                
+                scheme_name = row.get("Scheme Name", "")
+                if scheme_name:
+                    clients = scheme_df[scheme_df["Scheme Name"] == scheme_name]
+                    if not clients.empty:
+                        clients = clients.sort_values(by="Client Name")
+                        client_sr = 1
+                        for _, crow in clients.iterrows():
+                            cname = str(crow.get("Client Name", ""))
+                            cfolio = str(crow.get("Folio", ""))
+                            caum = crow.get("AUM", "")
+                            c_row = []
+                            for col in display_data.columns:
+                                if col == "Scheme Name":
+                                    c_row.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;{client_sr}. {cname} (Folio: {cfolio})", cell_style_left))
+                                elif col == "AUM":
+                                    if pd.notna(caum) and caum != "":
+                                        try:
+                                            caum_str = format_indian_currency(caum).replace('₹', 'Rs.')
+                                        except:
+                                            caum_str = str(caum)
+                                    else:
+                                        caum_str = ""
+                                    c_row.append(Paragraph(caum_str, cell_style_right))
+                                else:
+                                    c_row.append(Paragraph("", cell_style_center))
+                            table_data.append(c_row)
+                            client_sr += 1
             
             # Smart column widths: explicit sizes per column type
-            n_cols = len(pdf_df.columns)
+            n_cols = len(display_data.columns)
             avail_width = pagesizes.landscape(pagesizes.A4)[0] - 72
-            col_names = list(pdf_df.columns)
+            col_names = list(display_data.columns)
             
             # Define explicit widths for known columns
             narrow_cols = {"Sr.": 25, "XIRR": 42}
@@ -2018,7 +2078,7 @@ with main_tab3:
             key=f"scheme_pdf_{button_key}"
         )
     
-    def scheme_print_button(display_data, filter_text, button_key):
+    def scheme_print_button(display_data, scheme_df, filter_text, button_key):
         today = datetime.date.today().strftime("%d-%b-%Y")
         
         logo_path = os.path.join("logo", "AnandWealthLogo.jpg")
@@ -2029,18 +2089,55 @@ with main_tab3:
                 logo_b64 = b64mod.b64encode(f.read()).decode("utf-8")
             logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" style="height:50px;margin-bottom:10px;">'
         
-        # Clean data for print
-        print_df = display_data.copy()
-        if "AUM" in print_df.columns:
-            print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
-        if "Sr." in print_df.columns:
-            print_df["Sr."] = print_df["Sr."].apply(lambda x: str(int(x)) if pd.notna(x) and x != "" else "")
-        print_df = print_df.fillna("").astype(str).replace("nan", "").replace("None", "")
-        
-        table_html = print_df.to_html(index=False) if not print_df.empty else ""
+        table_html = "<table class='dataframe'><thead><tr>"
+        if not display_data.empty:
+            for col in display_data.columns:
+                table_html += f"<th>{col}</th>"
+            table_html += "</tr></thead><tbody>"
+            
+            for _, row in display_data.iterrows():
+                table_html += "<tr>"
+                for col in display_data.columns:
+                    val = row[col]
+                    align_style = " style='text-align:right;'" if col == "AUM" else ""
+                    if col == "AUM" and pd.notna(val) and val != "":
+                        val_str = format_indian_currency(val)
+                    elif col == "Sr." and pd.notna(val) and val != "":
+                        try:
+                            val_str = str(int(float(val)))
+                        except:
+                            val_str = str(val)
+                    else:
+                        val_str = str(val) if pd.notna(val) else ""
+                    table_html += f"<td{align_style}>{val_str}</td>"
+                table_html += "</tr>"
+                
+                scheme_name = row.get("Scheme Name", "")
+                if scheme_name:
+                    clients = scheme_df[scheme_df["Scheme Name"] == scheme_name]
+                    if not clients.empty:
+                        clients = clients.sort_values(by="Client Name")
+                        table_html += f"<tr><td colspan='{len(display_data.columns)}' style='padding: 0; border: none;'>"
+                        table_html += "<div style='margin-left: 50px; margin-bottom: 10px; margin-top: 5px;'>"
+                        table_html += "<table class='dataframe' style='width: 90%; background-color: #fcfcfc; border: 1px solid #ccc; margin-top:0;'>"
+                        table_html += "<thead><tr><th style='background-color:#e9ecef;color:#333;font-size:10px;'>Client Name</th><th style='background-color:#e9ecef;color:#333;font-size:10px;'>Folio</th><th style='background-color:#e9ecef;color:#333;font-size:10px;text-align:right;'>AUM</th></tr></thead><tbody>"
+                        for _, crow in clients.iterrows():
+                            cname = crow.get("Client Name", "")
+                            cfolio = crow.get("Folio", "")
+                            caum = crow.get("AUM", "")
+                            if pd.notna(caum) and caum != "":
+                                caum_str = format_indian_currency(caum)
+                            else:
+                                caum_str = ""
+                            table_html += f"<tr><td style='font-size:10px;'>{cname}</td><td style='font-size:10px;'>{cfolio}</td><td style='font-size:10px;text-align:right;'>{caum_str}</td></tr>"
+                        table_html += "</tbody></table></div></td></tr>"
+            
+            table_html += "</tbody></table>"
+        else:
+            table_html = ""
         
         html = f"""
-        <html><head><title>Scheme Summary Report</title>
+        <html><head><meta charset="utf-8"><title>Scheme Summary Report</title>
         <style>
             body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
             
@@ -2146,12 +2243,13 @@ with main_tab3:
         """
         
         import streamlit.components.v1 as components
+        html = html.replace('₹', '&#8377;')
         b64_data = base64.b64encode(html.encode('utf-8')).decode('utf-8')
         
         components.html(
             f"""
             <html>
-            <head>
+            <head><meta charset="utf-8">
             <style>
                 body {{
                     margin: 0;
@@ -2222,7 +2320,8 @@ with main_tab3:
                     st.error(f"Failed: {e}")
         st.markdown("</div>", unsafe_allow_html=True)
                     
-    scheme_df = load_scheme_wise()
+    with st.spinner("Fetching Scheme Wise Data..."):
+        scheme_df = load_scheme_wise()
     if not scheme_df.empty:
         #st.markdown("##### Filter Options")
         categories = scheme_df["Category Name"].dropna().unique().tolist()
@@ -2245,7 +2344,8 @@ with main_tab3:
         grouped_scheme = filtered_raw.groupby(["Category Name", "Sector", "Scheme Name"])["AUM"].sum().reset_index()
         
         # Merge with quartile details
-        master_q_df = load_all_scheme_quartiles(data_file)
+        with st.spinner("Loading quartile data for all schemes..."):
+            master_q_df = load_all_scheme_quartiles(data_file)
         required_periods = ["1 Month", "3 Months", "6 Months", "YTD", "1 Year", "2 Years"]
         
         if not master_q_df.empty:
@@ -2300,6 +2400,8 @@ with main_tab3:
             styled_df = merged_scheme.style.map(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
         except AttributeError:
             styled_df = merged_scheme.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in merged_scheme.columns])
+        if "AUM" in merged_scheme.columns:
+            styled_df = styled_df.format({"AUM": format_indian_currency}, na_rep="").set_properties(subset=["AUM"], **{"text-align": "right"})
         # Generate filter text for the report
         active_filters = []
         if sel_cat: active_filters.append(f"Category: {', '.join(sel_cat)}")
@@ -2310,15 +2412,15 @@ with main_tab3:
         # Render export buttons
         with btn_excel_col:
             st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
-            scheme_export_excel(merged_scheme, filter_text, "tab3")
+            scheme_export_excel(merged_scheme, scheme_df, filter_text, "tab3")
             st.markdown("</div>", unsafe_allow_html=True)
         with btn_pdf_col:
             st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
-            scheme_export_pdf(merged_scheme, filter_text, "tab3")
+            scheme_export_pdf(merged_scheme, scheme_df, filter_text, "tab3")
             st.markdown("</div>", unsafe_allow_html=True)
         with btn_print_col:
             st.markdown("<div style='padding-top: 28px;'>", unsafe_allow_html=True)
-            scheme_print_button(merged_scheme, filter_text, "tab3")
+            scheme_print_button(merged_scheme, scheme_df, filter_text, "tab3")
             st.markdown("</div>", unsafe_allow_html=True)
             
         #st.markdown("##### Schemes Summary")
@@ -2329,8 +2431,7 @@ with main_tab3:
             on_select="rerun",
             selection_mode="single-row",
             column_config={
-                "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
-                "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+                "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15)
             }
         )
         
@@ -2431,6 +2532,8 @@ with main_tab3:
                 detail_styled = detail_merged.style.map(color_cells_quartile, subset=[c for c in required_periods if c in detail_merged.columns])
             except AttributeError:
                 detail_styled = detail_merged.style.applymap(color_cells_quartile, subset=[c for c in required_periods if c in detail_merged.columns])
+            if "AUM" in detail_merged.columns:
+                detail_styled = detail_styled.format({"AUM": format_indian_currency}, na_rep="").set_properties(subset=["AUM"], **{"text-align": "right"})
                 
             st.dataframe(
                 detail_styled, 
@@ -2438,8 +2541,7 @@ with main_tab3:
                 hide_index=True,
                 column_config={
                     "Sr.": st.column_config.NumberColumn("Sr.", format="%d", width=15),
-                    "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f"),
-                    "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+                    "XIRR": st.column_config.NumberColumn("XIRR (%)", format="%.2f")
                 }
             )
             

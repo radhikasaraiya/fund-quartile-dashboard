@@ -1,0 +1,78 @@
+22: file_path = "Data/AUM_IndividualWise.xlsx"
+24: if not os.path.exists(file_path) and os.path.exists("AUM_IndividualWise.xlsx"):
+25: file_path = "AUM_IndividualWise.xlsx"
+28: if "AUM" in df.columns:
+29: df["AUM"] = pd.to_numeric(df["AUM"], errors="coerce").fillna(0).astype(int)
+44: if "AUM" in df.columns:
+45: df["AUM"] = pd.to_numeric(df["AUM"], errors="coerce").fillna(0).astype(int)
+699: # Auto-download AUM data if not downloaded today
+701: aum_file_path = "Data/AUM_IndividualWise.xlsx"
+702: aum_needs_download = True
+703: if os.path.exists(aum_file_path):
+704: aum_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(aum_file_path)).date()
+705: if aum_mtime == datetime.date.today():
+706: aum_needs_download = False
+708: if aum_needs_download:
+710: with st.spinner("Downloading AUM Data (first load of the day)..."):
+715: st.error(f"AUM Auto-Download Failed: {e}")
+724: if st.button("💼 Fetch AUM Data", help="Fetch and update the latest client assets under management (AUM) details"):
+726: with st.spinner("Downloading AUM Data..."):
+730: st.success("AUM Data Updated!")
+732: st.error(f"AUM Download Failed: {e}")
+1109: cols_to_show = ["Client Name", "Folio",  "ARN No","AUM"]
+1116: if "AUM" in display_df.columns:
+1117: total_aum = display_df["AUM"].sum()
+1123: total_row["AUM"] = total_aum
+1142: "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+1165: if "AUM" in export_df.columns:
+1166: export_df["AUM"] = export_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+1238: # Prepare data: format AUM with commas, replace None/nan with blank
+1240: if "AUM" in pdf_df.columns:
+1241: pdf_df["AUM"] = pdf_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+1291: medium_cols = {"Folio": 55, "ARN No": 55, "AUM": 55}
+1351: # Clean data for print: format AUM, remove None
+1353: if "AUM" in print_df.columns:
+1354: print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+1546: cols_to_show = ["Scheme Name", "Folio",  "ARN No","AUM"]
+1593: # Reorder columns to put XIRR before AUM
+1596: # # Ensure XIRR exists and is before AUM
+1601: #     if "AUM" in cols:
+1602: #         aum_index = cols.index("AUM")
+1603: #         cols.insert(aum_index, "XIRR")
+1636: if "AUM" in display_df.columns:
+1637: total_aum = display_df["AUM"].sum()
+1643: total_row["AUM"] = total_aum
+1676: # Ensure XIRR exists and is before AUM
+1681: if "AUM" in cols:
+1682: aum_index = cols.index("AUM")
+1683: cols.insert(aum_index, "XIRR")
+1717: "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+1808: if "AUM" in row_dict and pd.notna(row_dict["AUM"]) and row_dict["AUM"] != "":
+1810: row_dict["AUM"] = f"{float(row_dict['AUM']):,.2f}"
+1829: caum = crow.get("AUM", "")
+1832: if "AUM" in display_data.columns and pd.notna(caum) and caum != "":
+1834: c_dict["AUM"] = f"{float(caum):,.2f}"
+1844: # Right align AUM column dynamically
+1845: if "AUM" in export_df.columns:
+1846: aum_col_idx = list(export_df.columns).index("AUM") + 1
+1849: ws.cell(row=r, column=aum_col_idx).alignment = Alignment(horizontal='right')
+1940: style = header_style_right if col == "AUM" else header_style_center
+1949: if col == "AUM" and pd.notna(val) and val != "":
+1951: val = f"{float(val):,.2f}"
+1964: elif col == "AUM":
+1979: caum = crow.get("AUM", "")
+1984: elif col == "AUM":
+1985: if pd.notna(caum) and caum != "":
+1987: caum_str = f"{float(caum):,.2f}"
+1989: caum_str = str(caum)
+1991: caum_str = ""
+1992: c_row.append(Paragraph(caum_str, cell_style_right))
+2005: medium_cols = {"Category Name": 45, "Sector": 147, "AUM": 55}
+2067: if "AUM" in print_df.columns:
+2068: print_df["AUM"] = print_df["AUM"].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and x != "" else "")
+2277: # Group to get unique Category Name, Sector, Scheme Name with AUM sum
+2278: grouped_scheme = filtered_raw.groupby(["Category Name", "Sector", "Scheme Name"])["AUM"].sum().reset_index()
+2366: "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")
+2427: # Enforce column order: Client Name, Family Head Name, Folio, ARN No, XIRR, AUM
+2428: base_cols = ["Client Name", "Family Head Name", "Folio", "ARN No", "XIRR", "AUM"]
+2475: "AUM": st.column_config.NumberColumn("AUM", format="%,.2f")

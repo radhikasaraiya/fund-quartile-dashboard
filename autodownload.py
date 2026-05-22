@@ -180,7 +180,7 @@ def ScriptWiseClient(scriptname):
         page.wait_for_timeout(4000)
 
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(4000)
 
         # Go to Scheme Wise Report page
         page.goto("https://www.money2management.com/MF_SchemewiseReport.aspx")
@@ -293,7 +293,7 @@ def download_client_portfolio(client_name):
             el.dispatchEvent(new Event('change'));
         """)
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(4000)
         # Download Excel
         with page.expect_download() as download_info:
             page.locator("#ctl00_ContentPlaceHolder1_btn_export_excel").click()
