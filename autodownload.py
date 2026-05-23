@@ -41,46 +41,29 @@ def run():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
+        context.set_default_timeout(90000)
+        context.set_default_navigation_timeout(90000)
         page = context.new_page()
 
         # ---------------- LOGIN ----------------
         page.goto(URL)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("input[type='text']")
 
         page.get_by_role("textbox", name="Email").fill(EMAIL)
         page.get_by_role("textbox", name="Username").fill(USERNAME)
         page.get_by_role("textbox", name="Password").fill(PASSWORD)
         page.get_by_role("button", name="Login").click()
 
-       
-        # ---------------- NAVIGATION ----------------
-        # Wait properly after login
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(4000)
-
-        # # 1️⃣ Click Mutual Fund (NOT hover)
-        # page.get_by_text("Mutual Fund", exact=True).click()
-        # page.wait_for_timeout(2000)
-
-        # # 2️⃣ Click Distributor Report
-        # page.get_by_text("Distributor Report", exact=True).click()
-        # page.wait_for_timeout(2000)
-
-        # # 3️⃣ Click AUM Report
-        # page.get_by_text("AUM Report", exact=True).click()
-        # Wait after login
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
         # Go to AUM page
         page.goto("https://www.money2management.com/MF_AUM.aspx")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_rbtnsort")
 
         # Select Individual Wise
         page.select_option(
             "#ctl00_ContentPlaceHolder1_rbtnsort",
             value="AUMClientWise"
         )
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_chkinvamt")
 
         # Tick With Investment Amount
         page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
@@ -101,40 +84,35 @@ def run():
 
         browser.close()
 
+
 def MyFundList():
     _ensure_playwright_browsers()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
+        context.set_default_timeout(90000)
+        context.set_default_navigation_timeout(90000)
         page = context.new_page()
 
         # ---------------- LOGIN ----------------
         page.goto(URL)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("input[type='text']")
 
         page.get_by_role("textbox", name="Email").fill(EMAIL)
         page.get_by_role("textbox", name="Username").fill(USERNAME)
         page.get_by_role("textbox", name="Password").fill(PASSWORD)
         page.get_by_role("button", name="Login").click()
 
-       
-        # ---------------- NAVIGATION ----------------
-        # Wait properly after login
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(4000)
-
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
         # Go to AUM page
         page.goto("https://www.money2management.com/MF_AUM.aspx")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_rbtnsort")
 
         # Select Scheme Wise
         page.select_option(
             "#ctl00_ContentPlaceHolder1_rbtnsort",
             value="AUMSchemeWise"
         )
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_chkinvamt")
 
         # Tick With Investment Amount
         page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
@@ -164,31 +142,24 @@ def ScriptWiseClient(scriptname):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
+        context.set_default_timeout(90000)
+        context.set_default_navigation_timeout(90000)
         page = context.new_page()
 
         # ---------------- LOGIN ----------------
         page.goto(URL)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("input[type='text']")
 
         page.get_by_role("textbox", name="Email").fill(EMAIL)
         page.get_by_role("textbox", name="Username").fill(USERNAME)
         page.get_by_role("textbox", name="Password").fill(PASSWORD)
         page.get_by_role("button", name="Login").click()
 
-        # ---------------- NAVIGATION ----------------
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(4000)
-
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(4000)
-
         # Go to Scheme Wise Report page
         page.goto("https://www.money2management.com/MF_SchemewiseReport.aspx")
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_scheme")
 
         # Find the matching option value for the given scriptname
-        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_scheme", state="attached")
         options = page.locator("#ctl00_ContentPlaceHolder1_drp_scheme option").element_handles()
         selected_value = None
         print(f"Found {len(options)} scheme options.")
@@ -221,8 +192,8 @@ def ScriptWiseClient(scriptname):
             el.dispatchEvent(new Event('change'));
             __doPostBack('ctl00$ContentPlaceHolder1$drp_scheme', '');
         """)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(5000)
+        # Wait for Export to Excel button to be attached/visible
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_Btn_Export_Excel")
 
         # Click Export to Excel
         with page.expect_download() as download_info:
@@ -247,31 +218,31 @@ def download_client_portfolio(client_name):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
+        # Increase timeouts significantly for cloud deployment (e.g. 120 seconds)
+        context.set_default_timeout(120000)
+        context.set_default_navigation_timeout(120000)
         page = context.new_page()
 
         # ---------------- LOGIN ----------------
         page.goto(URL)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("input[type='text']")
 
         page.get_by_role("textbox", name="Email").fill(EMAIL)
         page.get_by_role("textbox", name="Username").fill(USERNAME)
         page.get_by_role("textbox", name="Password").fill(PASSWORD)
         page.get_by_role("button", name="Login").click()
 
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
-
-        # ---------------- NAVIGATION ----------------
+        # Go to Portfolio page
         page.goto("https://www.money2management.com/MF_MutualFundPortFoilo.aspx")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_rbtn_clienttype_1")
 
         # Select Individual Radio Button
         page.check("#ctl00_ContentPlaceHolder1_rbtn_clienttype_1")
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000) # Wait for UpdatePanel to re-populate
+        
+        # Wait for the Client Name dropdown to contain options (it is populated via AJAX)
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_ClientName option[value]")
 
         # Select Client
-        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_ClientName", state="attached")
         options = page.locator("#ctl00_ContentPlaceHolder1_drp_ClientName option").element_handles()
         selected_value = None
         print(f"Found {len(options)} options.")
@@ -292,8 +263,10 @@ def download_client_portfolio(client_name):
             el.value = '{selected_value}';
             el.dispatchEvent(new Event('change'));
         """)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(4000)
+        
+        # Wait for the export button to be visible/enabled
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_btn_export_excel")
+
         # Download Excel
         with page.expect_download() as download_info:
             page.locator("#ctl00_ContentPlaceHolder1_btn_export_excel").click()
