@@ -214,6 +214,16 @@ def ScriptWiseClient(scriptname):
 
 
 def download_client_portfolio(client_name):
+    # Ensure the directory exists
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    safe_name = "".join([c if c.isalnum() else "_" for c in client_name])
+    file_path = os.path.join(DOWNLOAD_DIR, f"Portfolio_{safe_name}_{today_str}.xls")
+    
+    if os.path.exists(file_path):
+        print(f"Portfolio file for today already exists at {file_path}. Skipping download.")
+        return file_path
+
     _ensure_playwright_browsers()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -240,7 +250,8 @@ def download_client_portfolio(client_name):
         page.check("#ctl00_ContentPlaceHolder1_rbtn_clienttype_1")
         
         # Wait for the Client Name dropdown to contain options (it is populated via AJAX)
-        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_ClientName option[value]")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_ClientName option[value]", state="attached")
+        page.wait_for_timeout(3000)  # Wait for AJAX population to complete
 
         # Select Client
         options = page.locator("#ctl00_ContentPlaceHolder1_drp_ClientName option").element_handles()
@@ -249,9 +260,12 @@ def download_client_portfolio(client_name):
 
         for opt in options:
             text = opt.text_content()
-            if text and client_name.strip().lower() in text.lower():
-                selected_value = opt.get_attribute("value")
-                break
+            if text:
+                norm_text = " ".join(text.lower().split())
+                norm_client = " ".join(client_name.lower().split())
+                if norm_client in norm_text:
+                    selected_value = opt.get_attribute("value")
+                    break
         if not selected_value:
             print(f"Could not find client: {client_name}")
             browser.close()
@@ -272,10 +286,6 @@ def download_client_portfolio(client_name):
             page.locator("#ctl00_ContentPlaceHolder1_btn_export_excel").click()
 
         download = download_info.value
-        
-        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-        safe_name = "".join([c if c.isalnum() else "_" for c in client_name])
-        file_path = os.path.join(DOWNLOAD_DIR, f"Portfolio_{safe_name}.xls")
         
         download.save_as(file_path)
         print(f"Portfolio download completed [Success]. Saved to {file_path}")

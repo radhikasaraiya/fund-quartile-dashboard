@@ -1576,14 +1576,10 @@ with main_tab2:
             display_df = client_data[cols_to_show].copy() if cols_to_show else client_data.copy()
             
             safe_name = "".join([c if c.isalnum() else "_" for c in selected_client])
-            client_file_path = os.path.join("Data", f"Portfolio_{safe_name}.xls")
+            today_str = datetime.date.today().strftime("%Y-%m-%d")
+            client_file_path = os.path.join("Data", f"Portfolio_{safe_name}_{today_str}.xls")
             
-            needs_download = True
-            if os.path.exists(client_file_path):
-                import datetime
-                file_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(client_file_path)).date()
-                if file_mtime == datetime.date.today():
-                    needs_download = False
+            needs_download = not os.path.exists(client_file_path)
             
             if needs_download:
                 import autodownload
