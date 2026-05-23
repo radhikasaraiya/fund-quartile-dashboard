@@ -69,7 +69,7 @@ def run():
         page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
 
         # Download Excel
-        with page.expect_download() as download_info:
+        with page.expect_download(timeout=90000) as download_info:
             page.get_by_role("button", name="Excel").click()
 
         download = download_info.value
@@ -118,7 +118,7 @@ def MyFundList():
         page.check("#ctl00_ContentPlaceHolder1_chkinvamt")
 
         # Download Excel
-        with page.expect_download() as download_info:
+        with page.expect_download(timeout=90000) as download_info:
             page.get_by_role("button", name="Excel").click()
 
         download = download_info.value
@@ -157,7 +157,7 @@ def ScriptWiseClient(scriptname):
 
         # Go to Scheme Wise Report page
         page.goto("https://www.money2management.com/MF_SchemewiseReport.aspx")
-        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_scheme")
+        page.wait_for_selector("#ctl00_ContentPlaceHolder1_drp_scheme", state="attached")
 
         # Find the matching option value for the given scriptname
         options = page.locator("#ctl00_ContentPlaceHolder1_drp_scheme option").element_handles()
@@ -196,7 +196,7 @@ def ScriptWiseClient(scriptname):
         page.wait_for_selector("#ctl00_ContentPlaceHolder1_Btn_Export_Excel")
 
         # Click Export to Excel
-        with page.expect_download() as download_info:
+        with page.expect_download(timeout=90000) as download_info:
             page.locator("#ctl00_ContentPlaceHolder1_Btn_Export_Excel").click()
 
         download = download_info.value
@@ -268,7 +268,7 @@ def download_client_portfolio(client_name):
         page.wait_for_selector("#ctl00_ContentPlaceHolder1_btn_export_excel")
 
         # Download Excel
-        with page.expect_download() as download_info:
+        with page.expect_download(timeout=120000) as download_info:
             page.locator("#ctl00_ContentPlaceHolder1_btn_export_excel").click()
 
         download = download_info.value
